@@ -83,9 +83,13 @@ export function generateRlsSql(): string {
       `CREATE POLICY tenant_isolation ON ${t.name} USING (${tenantPredicate(t)}) WITH CHECK (${tenantPredicate(t)});`,
     ];
     if (t.property) {
+      // RESTRICTIVE so it ANDs with tenant_isolation instead of ORing (permissive policies are
+      // OR-combined). Without this, the permissive property predicate — which is TRUE for a
+      // tenant-wide context — would satisfy an INSERT's WITH CHECK on its own and let a row be
+      // written for a DIFFERENT tenant. Restrictive + WITH CHECK closes that write-path hole.
       lines.push(
         `DROP POLICY IF EXISTS property_scope ON ${t.name};`,
-        `CREATE POLICY property_scope ON ${t.name} USING (${propertyPredicate(t)});`,
+        `CREATE POLICY property_scope ON ${t.name} AS RESTRICTIVE USING (${propertyPredicate(t)}) WITH CHECK (${propertyPredicate(t)});`,
       );
     }
     return `-- ${t.name}\n${lines.join('\n')}`;

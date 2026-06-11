@@ -3,12 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs --target node20 --clean --sourcemap --dts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "@vela/config": "workspace:*",

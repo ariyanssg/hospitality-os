@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  # ── Static gates: build, types, lint+boundaries, permission-guard + OpenAPI drift (no DB) ──
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: pnpm build
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint + module boundaries
+        run: pnpm exec eslint apps packages tooling
+      - name: Permission-guard coverage
+        run: pnpm check:permissions
+      - name: OpenAPI drift
+        run: pnpm check:openapi
+
+  # ── DB gates: migrations, RLS coverage, and the end-to-end demo against real Postgres ──
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vela
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://vela_app:vela_app@localhost:5432/vela
+      DATABASE_ADMIN_URL: postgres://postgres:postgres@localhost:5432/vela
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Apply migrations + RLS policies
+        run: pnpm db:migrate
+      - name: RLS coverage
+        run: pnpm check:rls
+      - name: Phase-0 demo (book → folio → night audit → trial balance)
+        run: pnpm demo
+
+  # ── Tests: property-based (Money), unit (permissions), integration (Testcontainers) ──
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Unit + property tests
+        run: pnpm --filter @vela/api --filter @vela/permissions test
+      - name: Integration tests (Testcontainers / Docker)
+        run: pnpm --filter @vela/db test

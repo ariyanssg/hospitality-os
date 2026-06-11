@@ -24,6 +24,9 @@
   "devDependencies": {
     "@vela/config": "workspace:*",
     "drizzle-kit": "catalog:",
+    "fast-check": "catalog:",
+    "testcontainers": "catalog:",
+    "@testcontainers/postgresql": "catalog:",
     "tsup": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
