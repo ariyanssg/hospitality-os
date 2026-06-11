@@ -1,0 +1,5 @@
+{
+  "extends": "@vela/config/tsconfig/library.json",
+  "compilerOptions": { "lib": ["ES2023", "DOM"] },
+  "include": ["src/**/*.ts"]
+}

@@ -1,0 +1,43 @@
+{
+  "name": "@vela/api",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "openapi:emit": "node dist/tooling/emit-openapi.js",
+    "test": "vitest run",
+    "test:int": "vitest run --config vitest.int.config.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-fastify": "catalog:",
+    "@nestjs/config": "catalog:",
+    "@vela/contracts": "workspace:*",
+    "@vela/db": "workspace:*",
+    "@vela/events": "workspace:*",
+    "@vela/permissions": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "fastify": "catalog:",
+    "ioredis": "catalog:",
+    "postgres": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "catalog:",
+    "@vela/config": "workspace:*",
+    "@types/node": "catalog:",
+    "testcontainers": "catalog:",
+    "@testcontainers/postgresql": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "fast-check": "catalog:"
+  }
+}

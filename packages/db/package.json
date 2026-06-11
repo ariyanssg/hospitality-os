@@ -1,0 +1,33 @@
+{
+  "name": "@vela/db",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./schema": { "types": "./dist/schema.d.ts", "default": "./dist/schema.js" },
+    "./rls": { "types": "./dist/rls.d.ts", "default": "./dist/rls.js" }
+  },
+  "scripts": {
+    "build": "tsup",
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx src/migrate.ts",
+    "push": "drizzle-kit push",
+    "studio": "drizzle-kit studio",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:",
+    "postgres": "catalog:",
+    "uuidv7": "^1.0.2"
+  },
+  "devDependencies": {
+    "@vela/config": "workspace:*",
+    "drizzle-kit": "catalog:",
+    "tsup": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

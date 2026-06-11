@@ -1,0 +1,27 @@
+{
+  "name": "@vela/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/nestjs.json": "./tsconfig/nestjs.json",
+    "./tsconfig/next.json": "./tsconfig/next.json",
+    "./tsconfig/library.json": "./tsconfig/library.json",
+    "./eslint/base": "./eslint/base.mjs",
+    "./eslint/boundaries": "./eslint/boundaries.mjs",
+    "./eslint/react": "./eslint/react.mjs",
+    "./eslint/no-raw-color": "./eslint/no-raw-color.mjs"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.18.0",
+    "typescript-eslint": "^8.20.0",
+    "eslint-plugin-boundaries": "^5.0.1",
+    "eslint-plugin-react": "^7.37.3",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0"
+  },
+  "peerDependencies": {
+    "eslint": "^9"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$comment": "Allowed module dependency graph — mirrors docs/04-system-architecture.md §2. Dependency direction is law; cycles and undeclared edges are a CI failure. Every module may import the kernel. A module may ONLY import another module's public index.ts, and only along an edge declared here.",
+  "layers": {
+    "kernel": ["kernel"],
+    "revenue-core": ["availability", "rates", "reservations", "folio", "gl"],
+    "operations": ["front-desk", "housekeeping", "maintenance", "pos", "inventory", "procurement"],
+    "commercial": ["booking-engine", "cms", "channel", "crm", "loyalty", "revenue"],
+    "back-office": ["accounting", "hr", "payroll", "reporting", "notifications", "ai"]
+  },
+  "modules": {
+    "kernel": [],
+
+    "availability": ["kernel"],
+    "rates": ["kernel"],
+    "gl": ["kernel"],
+    "folio": ["kernel", "gl"],
+    "reservations": ["kernel", "availability", "rates", "folio", "gl"],
+
+    "front-desk": ["kernel", "reservations", "availability", "rates", "folio"],
+    "housekeeping": ["kernel", "front-desk"],
+    "maintenance": ["kernel"],
+    "pos": ["kernel", "folio"],
+    "inventory": ["kernel"],
+    "procurement": ["kernel", "inventory"],
+
+    "booking-engine": ["kernel", "availability", "rates", "reservations"],
+    "cms": ["kernel"],
+    "channel": ["kernel", "availability", "rates", "reservations"],
+    "crm": ["kernel"],
+    "loyalty": ["kernel", "crm"],
+    "revenue": ["kernel", "rates", "availability"],
+
+    "accounting": ["kernel", "gl"],
+    "hr": ["kernel"],
+    "payroll": ["kernel", "hr"],
+    "reporting": ["kernel"],
+    "notifications": ["kernel"],
+    "ai": ["kernel"]
+  }
+}

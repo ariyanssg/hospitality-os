@@ -1,0 +1,62 @@
+# Vela local infrastructure — Postgres (system of record), Redis (cache/queues/streams),
+# OpenSearch (search + analytics). See docs/04-system-architecture.md §3.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vela-postgres
+    environment:
+      POSTGRES_USER: vela_admin
+      POSTGRES_PASSWORD: vela_admin
+      POSTGRES_DB: vela
+    ports:
+      # Host 5434 → container 5432: native Windows PostgreSQL 16/18 already hold 5432 and 5433.
+      - '5434:5432'
+    volumes:
+      - vela-pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vela_admin -d vela']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: vela-redis
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - vela-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    container_name: vela-opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - 'OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m'
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports:
+      - '9200:9200'
+    volumes:
+      - vela-osdata:/usr/share/opensearch/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -s http://localhost:9200/_cluster/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  vela-pgdata:
+  vela-redisdata:
+  vela-osdata:

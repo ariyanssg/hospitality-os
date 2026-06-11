@@ -1,0 +1,41 @@
+{
+  "name": "vela",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Vela — the hospitality operating system. Unified PMS + POS + booking + accounting for full-service hotels and resorts.",
+  "packageManager": "pnpm@10.34.2",
+  "engines": {
+    "node": ">=20.11",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "boundaries": "turbo run boundaries",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\" --ignore-path .gitignore",
+    "check:rls": "tsx --env-file-if-exists=.env tooling/check-rls/index.ts",
+    "check:permissions": "tsx --env-file-if-exists=.env tooling/check-permission-guards/index.ts",
+    "check:openapi": "tsx --env-file-if-exists=.env tooling/check-openapi/index.ts",
+    "openapi:emit": "tsx tooling/check-openapi/index.ts --write",
+    "db:generate": "pnpm --filter @vela/db generate",
+    "db:migrate": "tsx --env-file-if-exists=.env packages/db/src/migrate.ts",
+    "db:push": "pnpm --filter @vela/db push",
+    "demo": "tsx --env-file-if-exists=.env tooling/demo/index.ts",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:reset": "docker compose down -v && docker compose up -d"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@vela/config": "workspace:*",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  }
+}

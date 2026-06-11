@@ -1,0 +1,25 @@
+{
+  "name": "@vela/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./sdk": { "types": "./dist/sdk.d.ts", "default": "./dist/sdk.js" },
+    "./openapi": { "types": "./dist/openapi.d.ts", "default": "./dist/openapi.js" }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "catalog:",
+    "@asteasolutions/zod-to-openapi": "^7.3.0"
+  },
+  "devDependencies": {
+    "@vela/config": "workspace:*",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
