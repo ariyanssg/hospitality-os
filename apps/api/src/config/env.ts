@@ -1,4 +1,6 @@
 import { z } from 'zod';
+// Side-effect import: hydrate process.env from the repo-root .env before we read it (dev only).
+import './load-env';
 
 const EnvSchema = z.object({
   NODE_ENV: z.string().default('development'),
