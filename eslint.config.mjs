@@ -4,6 +4,7 @@ import noRawColor from '@vela/config/eslint/no-raw-color';
 
 /** Root ESLint flat config. App/package-specific configs extend these. */
 export default [
+  { ignores: ['**/next-env.d.ts', '**/.next/**', '**/storybook-static/**'] },
   ...base,
   ...boundaries,
   ...noRawColor,

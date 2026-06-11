@@ -25,6 +25,7 @@
     "db:migrate": "tsx --env-file-if-exists=.env packages/db/src/migrate.ts",
     "db:push": "pnpm --filter @vela/db push",
     "demo": "tsx --env-file-if-exists=.env tooling/demo/index.ts",
+    "seed": "tsx --env-file-if-exists=.env tooling/seed/index.ts",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "infra:reset": "docker compose down -v && docker compose up -d"

@@ -1,0 +1,6 @@
+/* The Desk global stylesheet — Atrium tokens + components, plus content sources for Tailwind v4. */
+@import '@vela/ui/styles';
+
+/* Tailwind v4 content detection: scan the app and the (symlinked) UI package source. */
+@source '../**/*.{ts,tsx}';
+@source '../../../packages/ui/src/**/*.{ts,tsx}';

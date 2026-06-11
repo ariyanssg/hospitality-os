@@ -43,3 +43,9 @@ packages/contracts/src/generated/
 
 # local pg data dir (no-Docker fallback)
 .pgdata/
+
+# next.js generated types
+next-env.d.ts
+
+# playwright MCP scratch output
+.playwright-mcp/

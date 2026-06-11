@@ -1,0 +1,11 @@
+{
+  "extends": "@vela/config/tsconfig/next.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "**/*.stories.tsx", ".storybook"]
+}

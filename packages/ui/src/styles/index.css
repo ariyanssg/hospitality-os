@@ -1,0 +1,122 @@
+/**
+ * Atrium entrypoint. Apps import this once: `import '@vela/ui/styles'`.
+ * Order matters: Tailwind → primitives → semantic → @theme bindings → base.
+ */
+@import 'tailwindcss';
+@import './primitives.css';
+@import './semantic.css';
+
+/* Dark mode is class-driven (`.dark` on <html>), not media-query — staff toggle it. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/**
+ * Bind semantic tokens into Tailwind's theme so utilities resolve to the LIVE CSS variables
+ * (`@theme inline` references the var rather than copying its value → theme/density swaps are free).
+ */
+@theme inline {
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-raised: var(--bg-raised);
+  --color-sunken: var(--bg-sunken);
+
+  --color-ink-primary: var(--ink-primary);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-tertiary: var(--ink-tertiary);
+  --color-ink-disabled: var(--ink-disabled);
+  --color-ink-inverse: var(--ink-inverse);
+  --color-ink-accent: var(--ink-accent);
+
+  --color-hairline: var(--line-hairline);
+  --color-line-strong: var(--line-strong);
+  --color-focus: var(--line-focus);
+
+  --color-interactive: var(--interactive-default);
+  --color-interactive-hover: var(--interactive-hover);
+  --color-interactive-active: var(--interactive-active);
+  --color-interactive-selected: var(--interactive-selected);
+
+  --color-positive-bg: var(--status-positive-bg);
+  --color-positive-ink: var(--status-positive-ink);
+  --color-positive-line: var(--status-positive-line);
+  --color-caution-bg: var(--status-caution-bg);
+  --color-caution-ink: var(--status-caution-ink);
+  --color-caution-line: var(--status-caution-line);
+  --color-critical-bg: var(--status-critical-bg);
+  --color-critical-ink: var(--status-critical-ink);
+  --color-critical-line: var(--status-critical-line);
+  --color-info-bg: var(--status-info-bg);
+  --color-info-ink: var(--status-info-ink);
+  --color-info-line: var(--status-info-line);
+  --color-neutral-bg: var(--status-neutral-bg);
+  --color-neutral-ink: var(--status-neutral-ink);
+  --color-neutral-line: var(--status-neutral-line);
+
+  --font-sans: var(--font-ui);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+@layer base {
+  * {
+    border-color: var(--line-hairline);
+  }
+  html {
+    font-family: var(--font-ui);
+    font-feature-settings: 'ss01' 1, 'cv01' 1;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background: var(--bg-canvas);
+    color: var(--ink-primary);
+    font-size: var(--font-size-ui);
+  }
+  /* Tabular numerals everywhere data lives. */
+  .tnum,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  :focus-visible {
+    outline: 2px solid var(--line-focus);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Data-change choreography (doc 17 §3 motion law): new rows settle, not chrome. */
+@keyframes atrium-row-enter {
+  from {
+    background: var(--status-info-bg);
+  }
+  to {
+    background: transparent;
+  }
+}
+.animate-row-enter {
+  animation: atrium-row-enter 1.5s var(--ease-standard);
+}
+@keyframes atrium-pulse-once {
+  0%,
+  100% {
+    background: transparent;
+  }
+  35% {
+    background: var(--status-info-bg);
+  }
+}
+.animate-cell-pulse {
+  animation: atrium-pulse-once var(--motion-base) var(--ease-standard);
+}
