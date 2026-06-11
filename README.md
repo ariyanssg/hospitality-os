@@ -49,11 +49,18 @@ infra/        postgres init, (terraform/helm later)
 ```bash
 pnpm install
 cp .env.example .env
-pnpm infra:up          # Postgres + Redis + OpenSearch via Docker
+pnpm infra:up          # Postgres + Redis + OpenSearch via Docker (Postgres on host :5434)
 pnpm db:migrate        # apply schema + RLS policies
 pnpm demo              # provision a tenant and take a booking end-to-end → trial balance
-pnpm dev               # run api + web
+pnpm seed              # provision a populated property (today's arrivals) for the web app
+pnpm dev               # run api + web → http://localhost:3000
 ```
+
+Sign in to **The Desk** with the seeded Front Desk user: `frankie@grand-vela.demo` / `demo-password`.
+
+> The Docker Postgres is published on host port **5434** to avoid clashing with a native Windows
+> PostgreSQL install on 5432/5433. Adjust `.env` if your setup differs. `.env` is auto-loaded by the
+> `db:migrate`, `demo`, `seed`, and `check:*` scripts (via `tsx --env-file-if-exists`).
 
 ## Definition of done (Phase 0)
 
