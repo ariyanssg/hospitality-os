@@ -6,7 +6,7 @@
 
 ## 1. Design language
 
-- **Foundation:** Tailwind + shadcn/ui, customized into a real design system (`packages/ui`): design tokens (color, type scale, spacing, radii, elevation, motion) themed light/dark from day one; density variants (`comfortable` for managers/settings, `compact` for ops boards, `touch` for POS/kiosk — 44px+ targets).
+- **Foundation:** Tailwind + shadcn/ui, customized into a real design system (`packages/ui`): design tokens (color, type scale, spacing, radii, elevation, motion) themed light/dark from day one; density variants (`comfortable` for managers/settings, `compact` for ops boards, `touch` for POS/kiosk — 44px+ targets). Full specification — token tiers, typography/color/motion/iconography systems, complete component inventory, pattern library, governance — in [17-design-system.md](17-design-system.md) ("Atrium").
 - **Personality:** calm neutral surfaces, one confident accent per tenant-brandable palette (staff app stays platform-branded; guest surfaces take hotel branding), generous data typography (tabular numerals everywhere money or counts appear), subtle motion (150–200ms, never decorative-blocking).
 - **Information density without clutter:** the OPERA lesson is that density ≠ noise. Boards use layered disclosure — a rack cell shows status color + guest surname; hover/focus reveals the context card; enter opens the record. Manager dashboards default to 6–8 KPI tiles, not 40.
 - Accessibility: WCAG 2.2 AA across staff + guest surfaces (contrast-checked tokens, full keyboard paths, screen-reader landmarks, reduced-motion). Audited per release; it's also a procurement checkbox enterprise buyers ask for.
@@ -26,6 +26,8 @@
 - **Flow completeness:** every core front-desk task (walk-in, check-in, checkout, post, pay) is executable keyboard-only — measured in CI by E2E tests that forbid pointer events.
 
 ## 4. Signature screens (form follows workflow)
+
+*(The front desk, as the flagship surface, has a full experience spec: [18-front-desk-experience.md](18-front-desk-experience.md).)*
 
 - **Today (per role):** the landing surface — arrivals/departures/alerts for FOM; covers/86s/labor for F&B; flash + exceptions for GM. Answers "what needs me now?" before any navigation.
 - **The Rack:** virtualized rooms×dates grid (500 rooms × 30 days smooth), drag to move/extend (policy-checked with live rate delta preview), color = status, badges = VIP/notes/OOO; right-click/`.` quick actions; filter bar (floor, type, status).

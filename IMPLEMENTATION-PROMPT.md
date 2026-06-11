@@ -19,6 +19,8 @@ Read these in order (skim the rest of `docs/` as needed):
 7. `docs/14-engineering-standards.md` — **monorepo layout, boundary enforcement, testing policy, CI — follow it exactly**
 8. `docs/15-implementation-roadmap.md` — you are building **Phase 0**
 9. `docs/modules/01-pms-core.md` — the domain you'll implement first
+10. `docs/17-design-system.md` — the "Atrium" design system spec; `packages/ui` must follow it (token tiers, density modes, component contracts), not default shadcn styling
+11. `docs/18-front-desk-experience.md` — "The Desk" flagship spec; the Phase-0 `apps/web` screens (arrivals list, reservation record, ⌘K shell) are early slices of this layout (top bar + pulse bar + rail + workspace + action tray) and must follow its anatomy from the start
 
 ## Mandated stack (fixed — do not substitute)
 
@@ -43,7 +45,7 @@ Goal (from roadmap): *a demo tenant takes a booking end-to-end via API → folio
    - Check-in/check-out/cancel transitions per the state machine in doc 04 §5
    - Night-audit walking skeleton: roll `business_date`, post room+tax for in-house, generate daily journal
 5. **Contracts pipeline**: Zod schemas in `packages/contracts` shared by API validation and frontend; OpenAPI generated from code in CI; typed SDK consumed by `apps/web`.
-6. **`apps/web` minimal**: login, property switcher, arrivals list, reservation record, ⌘K palette shell — enough to exercise the API through the SDK; design tokens + density variants started in `packages/ui` per doc 13.
+6. **`apps/web` minimal**: login, property switcher, arrivals list, reservation record, ⌘K palette shell — enough to exercise the API through the SDK. `packages/ui` starts per doc 17: three-tier OKLCH token architecture (primitives → semantic → component, CSS variables, dark mode from day one), density provider (`comfortable/compact/touch`), Tier-A primitives rewired to semantic tokens, and the DataGrid foundation (TanStack Table, virtualized) — plus Storybook with the state×density×theme story matrix and the lint rule banning raw hex/palette colors outside `packages/ui`.
 
 ## Non-negotiable working rules
 

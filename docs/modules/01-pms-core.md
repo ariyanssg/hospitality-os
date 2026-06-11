@@ -67,7 +67,7 @@ sequenceDiagram
 The counter update **is** the lock — two simultaneous bookings of the last room: one commits, one gets a constraint violation → clean 409. This is the structural overbooking fix.
 
 ### Check-in
-1. Arrival board → guest (search/scan) → verify ID/reg-card (e-sign) → room auto-suggested (gap-optimizing assigner; preferences; clean+inspected only) or manual from rack → guarantee/card on file verified or captured → key encode hook → status `checked_in`; room `occupied`; folio activated; deposit applied; events fan to HK board and POS (guest now room-chargeable). Target: < 60 seconds, fully keyboard-driven (see [13-ux-strategy.md](../13-ux-strategy.md)).
+1. Arrival board → guest (search/scan) → verify ID/reg-card (e-sign) → room auto-suggested (gap-optimizing assigner; preferences; clean+inspected only) or manual from rack → guarantee/card on file verified or captured → key encode hook → status `checked_in`; room `occupied`; folio activated; deposit applied; events fan to HK board and POS (guest now room-chargeable). Target: < 60 seconds, fully keyboard-driven (experience spec: [18-front-desk-experience.md](../18-front-desk-experience.md)).
 
 ### Room move
 `POST /room-moves` → validates target (clean, type rules, rate delta policy: keep/reprice with manager override) → closes current `room_stay` at effective date, opens new → HK tasks auto-created for both rooms → posting note on folio if rate changes → `room.moved` event (POS sees new room number instantly).

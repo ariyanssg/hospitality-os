@@ -5,7 +5,7 @@
 
 ## Reading order
 
-New to the project: `00 → 03 → 04 → modules/01 → 15`. Engineers: `04 → 05 → 06 → 07 → 08 → 14`. Product/commercial: `01 → 02 → 03 → 13 → 15 → 16`.
+New to the project: `00 → 03 → 04 → modules/01 → 15`. Engineers: `04 → 05 → 06 → 07 → 08 → 14`. Product/commercial: `01 → 02 → 03 → 13 → 15 → 16`. Design: `13 → 17 → 18 → modules/13`.
 
 ## Document map
 
@@ -25,6 +25,8 @@ New to the project: `00 → 03 → 04 → modules/01 → 15`. Engineers: `04 →
 | [11-infrastructure.md](11-infrastructure.md) | AWS/EKS topology, IaC, environments, CDN, DR, cells |
 | [12-performance-scalability.md](12-performance-scalability.md) | Budgets, caching layers, DB scaling sequence, rate limiting, capacity model |
 | [13-ux-strategy.md](13-ux-strategy.md) | Design language, keyboard/command system, signature screens, interaction principles |
+| [17-design-system.md](17-design-system.md) | "Atrium" design system: token architecture, typography/color/motion, component inventory, patterns, a11y, governance |
+| [18-front-desk-experience.md](18-front-desk-experience.md) | "The Desk" flagship front-desk experience: layout anatomy, screen specs, 60-second check-in, demo wow inventory, IT-head assurances |
 | [14-engineering-standards.md](14-engineering-standards.md) | Monorepo layout, boundaries, testing, CI/CD, observability/SLOs |
 | [15-implementation-roadmap.md](15-implementation-roadmap.md) | Phases 0–4 with scope, teams, and exit criteria |
 | [16-risks-and-future.md](16-risks-and-future.md) | Risk register, kill criteria, expansion opportunities |
