@@ -2,5 +2,6 @@
 export type AssignmentScope = 'tenant' | 'property' | 'department';
 
 export * from './catalog';
+export * from './platform-catalog';
 export * from './permission-set';
 export * from './roles';

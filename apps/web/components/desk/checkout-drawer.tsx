@@ -5,7 +5,10 @@ import { ArrowRight, Check, CreditCard, Lock, Mail, Sparkles, X } from 'lucide-r
 import { Badge, Button, Kbd, MoneyText, Skeleton } from '@vela/ui';
 import type { DepartureRow } from '@vela/contracts';
 import { useSdk } from '@/lib/sdk';
-import { useCan, useToast } from '@/lib/store';
+import { useCan, useSession, useToast } from '@/lib/store';
+
+const SELECT_CLASS =
+  'flex h-9 rounded-[var(--radius-md)] border border-[var(--line-strong)] bg-[var(--bg-surface)] px-2 text-[12.5px] text-[var(--ink-primary)] focus-visible:border-[var(--line-focus)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--line-focus)]';
 
 /**
  * Express checkout (front-desk concept): folio review → settle → done in one drawer.
@@ -23,8 +26,10 @@ export function CheckoutDrawer({
   const qc = useQueryClient();
   const showToast = useToast((s) => s.show);
   const canCheckOut = useCan('reservation.checkout');
+  const propertyId = useSession((s) => s.activePropertyId);
 
   const [done, setDone] = useState(false);
+  const [method, setMethod] = useState('card');
   const primaryActionRef = useRef<HTMLButtonElement>(null);
   useEffect(() => setDone(false), [departure?.id]);
   useEffect(() => {
@@ -42,14 +47,29 @@ export function CheckoutDrawer({
     queryFn: () => sdk.getFolio(reservation!.folioId!),
     enabled: !!reservation?.folioId,
   });
+  const { data: settings } = useQuery({
+    queryKey: ['settings-catalog', propertyId],
+    queryFn: () => sdk.settingsCatalog(),
+    enabled: !!departure && !!propertyId,
+    refetchOnMount: 'always',
+    staleTime: 0,
+  });
 
   const due = folio ? Number(folio.balance.amount) : Number(departure?.balance.amount ?? 0);
+  const paymentMethods =
+    settings?.paymentMethods.filter((paymentMethod) => paymentMethod.isActive) ?? [];
+
+  useEffect(() => {
+    if (paymentMethods.length > 0 && !paymentMethods.some((item) => item.code === method)) {
+      setMethod(paymentMethods[0]!.code);
+    }
+  }, [method, paymentMethods]);
 
   const checkout = useMutation({
     mutationFn: async () => {
       if (due > 0 && reservation?.folioId) {
         await sdk.recordPayment(reservation.folioId, {
-          method: 'card',
+          method,
           amount: { amount: due.toFixed(2), currency: folio?.currency ?? 'USD' },
           reference: 'desk-express-checkout',
         });
@@ -187,10 +207,24 @@ export function CheckoutDrawer({
                 </h3>
                 <span className="flex w-full items-center gap-2 rounded-[var(--radius-md)] border border-[var(--line-hairline)] bg-[var(--bg-sunken)] px-3 py-2 text-[13px] text-[var(--ink-secondary)]">
                   <CreditCard className="size-[15px]" />
-                  {due > 0
-                    ? 'Card on file — balance collects before the folio closes'
-                    : 'Settled in full — express path'}
+                  {due > 0 ? 'Balance collects before the folio closes' : 'Settled in full'}
                   <span className="flex-1" />
+                  {due > 0 && (
+                    <select
+                      value={method}
+                      onChange={(event) => setMethod(event.target.value)}
+                      className={SELECT_CLASS}
+                    >
+                      {(paymentMethods.length
+                        ? paymentMethods
+                        : [{ code: 'card', name: 'Card' }]
+                      ).map((paymentMethod) => (
+                        <option key={paymentMethod.code} value={paymentMethod.code}>
+                          {paymentMethod.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {due <= 0 && (
                     <Badge tone="positive" dot>
                       Express ready

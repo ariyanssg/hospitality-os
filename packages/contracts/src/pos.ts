@@ -45,7 +45,7 @@ export type AddPosItemInput = z.infer<typeof AddPosItemSchema>;
 
 export const PosPaymentSchema = z
   .object({
-    method: z.enum(['card', 'cash', 'bank_transfer', 'ar_transfer', 'voucher']),
+    method: z.string().trim().min(1),
     amount: MoneySchema,
     reference: z.string().optional(),
   })

@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { roomOccupancy, roomStatusHousekeeping } from './enums';
 import { auditColumns, pk, propertyId, tenantId } from './_shared';
+import { floors, roomAmenities } from './settings';
 
 /* Inventory & Availability module tables (doc 04 §2, doc modules/01).
  * Invariant: sold + blocked ≤ physical − out_of_order + overbook_limit per room-type per date,
@@ -30,7 +31,9 @@ export const roomTypes = pgTable(
     maxOccupancy: integer('max_occupancy').notNull().default(2),
     defaultOccupancy: integer('default_occupancy').notNull().default(2),
     /** Attribute-first for future attribute-based selling (doc modules/01 future). */
-    attributes: jsonb('attributes').notNull().default(sql`'{}'::jsonb`),
+    attributes: jsonb('attributes')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     sortOrder: integer('sort_order').notNull().default(0),
     ...auditColumns(),
   },
@@ -47,16 +50,39 @@ export const rooms = pgTable(
       .notNull()
       .references(() => roomTypes.id),
     number: text('number').notNull(),
+    floorId: uuid('floor_id').references(() => floors.id),
     floor: text('floor'),
     hkStatus: roomStatusHousekeeping('hk_status').notNull().default('clean'),
     occupancy: roomOccupancy('occupancy').notNull().default('vacant'),
-    attributes: jsonb('attributes').notNull().default(sql`'{}'::jsonb`),
+    attributes: jsonb('attributes')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     statusUpdatedAt: timestamp('status_updated_at', { withTimezone: true }).notNull().defaultNow(),
     ...auditColumns(),
   },
   (t) => [
     uniqueIndex('rooms_tenant_property_number').on(t.tenantId, t.propertyId, t.number),
     index('rooms_by_type').on(t.tenantId, t.propertyId, t.roomTypeId),
+    index('rooms_by_floor').on(t.tenantId, t.propertyId, t.floorId),
+  ],
+);
+
+export const roomAmenityAssignments = pgTable(
+  'room_amenity_assignments',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyId(),
+    roomId: uuid('room_id')
+      .notNull()
+      .references(() => rooms.id, { onDelete: 'cascade' }),
+    amenityId: uuid('amenity_id')
+      .notNull()
+      .references(() => roomAmenities.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    uniqueIndex('room_amenity_assignments_unique').on(t.roomId, t.amenityId),
+    index('room_amenity_assignments_room').on(t.tenantId, t.propertyId, t.roomId),
   ],
 );
 

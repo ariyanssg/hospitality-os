@@ -2,8 +2,8 @@ import { Controller, Get } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { properties, tenants, users } from '@vela/db';
 import type { Me } from '@vela/contracts';
-import { Ctx } from '../context/context.decorator';
-import type { RequestContext } from '../context/request-context';
+import { AnyCtx } from '../context/context.decorator';
+import type { AnyRequestContext } from '../context/request-context';
 import { AuthenticatedOnly } from '../permissions/decorators';
 import { DbService } from '../db/db.service';
 import { NotFoundError } from '../errors/domain-errors';
@@ -15,13 +15,28 @@ export class MeController {
 
   @Get()
   @AuthenticatedOnly()
-  async me(@Ctx() ctx: RequestContext): Promise<Me> {
+  async me(@AnyCtx() ctx: AnyRequestContext): Promise<Me> {
     const [user] = await this.db.admin
       .select({ name: users.name, email: users.email })
       .from(users)
       .where(eq(users.id, ctx.userId))
       .limit(1);
     if (!user) throw new NotFoundError('User');
+
+    // Platform admins can be signed in with no active hotel — tenant fields are null then.
+    if (ctx.tenantId === null) {
+      return {
+        userId: ctx.userId,
+        name: user.name,
+        email: user.email,
+        tenantId: null,
+        tenantName: null,
+        properties: [],
+        permissions: ctx.permissions.toArray(),
+        isPlatformAdmin: ctx.isPlatformAdmin,
+        platformPermissions: [...ctx.platformPermissions],
+      };
+    }
 
     const [tenant] = await this.db.admin
       .select({ name: tenants.name })
@@ -48,6 +63,8 @@ export class MeController {
       tenantName: tenant?.name ?? '',
       properties: props,
       permissions: ctx.permissions.toArray(),
+      isPlatformAdmin: ctx.isPlatformAdmin,
+      platformPermissions: [...ctx.platformPermissions],
     };
   }
 }

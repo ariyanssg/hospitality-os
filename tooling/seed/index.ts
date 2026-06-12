@@ -10,7 +10,7 @@
 import { randomBytes, scrypt as scryptCb } from 'node:crypto';
 import { promisify } from 'node:util';
 import { createDbClient, uuidv7 } from '@vela/db';
-import { expandWildcards, getSystemRole } from '@vela/permissions';
+import { PLATFORM_PERMISSION_KEYS, expandWildcards, getSystemRole } from '@vela/permissions';
 
 const scrypt = promisify(scryptCb);
 const ADMIN_URL =
@@ -18,6 +18,7 @@ const ADMIN_URL =
 const CURRENCY = 'USD';
 const LOGIN_EMAIL = 'frankie@grand-vela.demo';
 const GM_EMAIL = 'greta@grand-vela.demo';
+const SUPERADMIN_EMAIL = 'admin@vela.platform';
 const LOGIN_PASSWORD = 'demo-password';
 
 const ymd = (d: Date): string => d.toISOString().slice(0, 10);
@@ -74,6 +75,21 @@ const POS_LAGOON_TABLES: Array<[string, string, number]> = [
   ['Walk-up', 'Walk-up', 1],
 ];
 
+const ROOM_AMENITIES: Array<[string, string, string]> = [
+  ['BALCONY', 'Balcony', 'view'],
+  ['OCEAN', 'Ocean view', 'view'],
+  ['TUB', 'Soaking tub', 'bath'],
+  ['WIFI', 'High-speed Wi-Fi', 'connectivity'],
+];
+
+const DEFAULT_PAYMENT_METHODS: Array<[string, string, number]> = [
+  ['card', 'Card', 10],
+  ['cash', 'Cash', 20],
+  ['bank_transfer', 'Bank transfer', 30],
+  ['ar_transfer', 'AR transfer', 40],
+  ['voucher', 'Voucher', 50],
+];
+
 /** The terminal's server role — POS keys only, instantiated per tenant like the system templates. */
 const OUTLET_SERVER_PERMISSIONS = [
   'pos.check.view',
@@ -90,7 +106,14 @@ const OUTLET_SERVER_PERMISSIONS = [
   'reservation.table.manage',
 ];
 
-type SeedCheckItem = [name: string, course: string, qty: number, price: string, status: 'fired' | 'ready', firedSecAgo: number];
+type SeedCheckItem = [
+  name: string,
+  course: string,
+  qty: number,
+  price: string,
+  status: 'fired' | 'ready',
+  firedSecAgo: number,
+];
 /** Open checks matching the Vela POS Terminal design — table label → check. */
 const POS_VISTA_CHECKS: Array<{
   table: string;
@@ -100,7 +123,10 @@ const POS_VISTA_CHECKS: Array<{
   items: SeedCheckItem[];
 }> = [
   {
-    table: '14', number: '1042', covers: 2, openedMinAgo: 38,
+    table: '14',
+    number: '1042',
+    covers: 2,
+    openedMinAgo: 38,
     items: [
       ['Hamachi crudo', 'C1·S1', 1, '22.00', 'ready', 1700],
       ['Albariño · glass', 'C1·S1', 1, '11.00', 'ready', 1700],
@@ -109,7 +135,10 @@ const POS_VISTA_CHECKS: Array<{
     ],
   },
   {
-    table: '8', number: '1038', covers: 7, openedMinAgo: 64,
+    table: '8',
+    number: '1038',
+    covers: 7,
+    openedMinAgo: 64,
     items: [
       ['Tuna tostada', 'C1·S1', 2, '19.00', 'ready', 2900],
       ['Crisped octopus', 'C1·S3', 1, '24.00', 'ready', 2900],
@@ -122,7 +151,10 @@ const POS_VISTA_CHECKS: Array<{
     ],
   },
   {
-    table: '4', number: '1041', covers: 2, openedMinAgo: 52,
+    table: '4',
+    number: '1041',
+    covers: 2,
+    openedMinAgo: 52,
     items: [
       ['Heirloom tomato tartare', 'C1·S1', 1, '16.00', 'ready', 2400],
       ['Mushroom tetela', 'C2·S1', 1, '26.00', 'fired', 662],
@@ -130,7 +162,10 @@ const POS_VISTA_CHECKS: Array<{
     ],
   },
   {
-    table: '6', number: '1040', covers: 3, openedMinAgo: 22,
+    table: '6',
+    number: '1040',
+    covers: 3,
+    openedMinAgo: 22,
     items: [
       ['Burrata & charred peach', 'C1·S1', 1, '18.00', 'ready', 1100],
       ['Rioja crianza · glass', 'C1·S1', 2, '13.00', 'ready', 1100],
@@ -138,7 +173,10 @@ const POS_VISTA_CHECKS: Array<{
     ],
   },
   {
-    table: '2', number: '1035', covers: 3, openedMinAgo: 100,
+    table: '2',
+    number: '1035',
+    covers: 3,
+    openedMinAgo: 100,
     items: [
       ['Oysters · ½ dozen', 'C1·S1', 1, '24.00', 'ready', 5200],
       ['Snapper a la talla — Roasted · Esquites', 'C2·S1', 1, '38.00', 'ready', 3600],
@@ -148,7 +186,10 @@ const POS_VISTA_CHECKS: Array<{
     ],
   },
   {
-    table: '12', number: '1037', covers: 2, openedMinAgo: 106,
+    table: '12',
+    number: '1037',
+    covers: 2,
+    openedMinAgo: 106,
     items: [
       ['Churros & cajeta', 'C3·S1', 1, '12.00', 'fired', 780],
       ['Flan de coco', 'C3·S2', 1, '11.00', 'fired', 780],
@@ -156,11 +197,17 @@ const POS_VISTA_CHECKS: Array<{
     ],
   },
   {
-    table: '1', number: '1044', covers: 2, openedMinAgo: 12,
+    table: '1',
+    number: '1044',
+    covers: 2,
+    openedMinAgo: 12,
     items: [['Vela paloma', 'C1·S1', 2, '16.00', 'fired', 130]],
   },
   {
-    table: '10', number: '1045', covers: 2, openedMinAgo: 6,
+    table: '10',
+    number: '1045',
+    covers: 2,
+    openedMinAgo: 6,
     items: [['Pool spritz', 'C1·S1', 2, '15.00', 'fired', 70]],
   },
 ];
@@ -173,7 +220,10 @@ const POS_LAGOON_CHECKS: Array<{
   items: SeedCheckItem[];
 }> = [
   {
-    table: 'Cabana 3', number: '2031', covers: 2, openedMinAgo: 42,
+    table: 'Cabana 3',
+    number: '2031',
+    covers: 2,
+    openedMinAgo: 42,
     items: [
       ['Baja tacos', 'QS', 2, '14.00', 'fired', 92],
       ['Coco fries', 'QS', 1, '9.00', 'fired', 92],
@@ -181,14 +231,20 @@ const POS_LAGOON_CHECKS: Array<{
     ],
   },
   {
-    table: 'Swim-up 2', number: '2032', covers: 2, openedMinAgo: 18,
+    table: 'Swim-up 2',
+    number: '2032',
+    covers: 2,
+    openedMinAgo: 18,
     items: [
       ['Vela paloma', 'QS', 2, '16.00', 'ready', 800],
       ['Citrus tepache', 'QS', 1, '9.00', 'ready', 800],
     ],
   },
   {
-    table: 'Walk-up', number: '2033', covers: 1, openedMinAgo: 7,
+    table: 'Walk-up',
+    number: '2033',
+    covers: 1,
+    openedMinAgo: 7,
     items: [
       ['Pool spritz', 'QS', 1, '15.00', 'fired', 240],
       ['Coco fries', 'QS', 1, '9.00', 'fired', 240],
@@ -220,7 +276,9 @@ async function main(): Promise<void> {
     const tables = await sql<{ tablename: string }[]>`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'schema_migrations'`;
     if (tables.length > 0) {
-      await sql.unsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`);
+      await sql.unsafe(
+        `TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`,
+      );
     }
 
     const today = new Date(`${ymd(new Date())}T00:00:00.000Z`);
@@ -296,10 +354,32 @@ async function main(): Promise<void> {
               VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'PAYMENT', 'Payment', 'payment', '1000')`;
     await sql`INSERT INTO charge_codes (id, tenant_id, property_id, code, name, category, gl_account_code)
               VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'MINIBAR', 'Minibar', 'fnb', '4100')`;
+    // POS room charges post under FNB (PosService.close → FolioService.postCharge).
+    await sql`INSERT INTO charge_codes (id, tenant_id, property_id, code, name, category, gl_account_code)
+              VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'FNB', 'Food & Beverage', 'fnb', '4100')`;
     await sql`INSERT INTO charge_codes (id, tenant_id, property_id, code, name, category, gl_account_code)
               VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'MISC', 'Miscellaneous', 'misc', '4200')`;
     await sql`INSERT INTO tax_rules (id, tenant_id, property_id, code, name, rate_pct, inclusive, applies_to_category, gl_account_code)
               VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'VAT', 'Occupancy Tax', '10.0000', false, 'room', '2100')`;
+
+    for (const [code, name, sortOrder] of DEFAULT_PAYMENT_METHODS) {
+      await sql`INSERT INTO payment_methods (id, tenant_id, property_id, code, name, category, sort_order, is_active)
+                VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, ${code}, ${name}, 'payment', ${sortOrder}, true)`;
+    }
+
+    const floorIds: Record<string, string> = {};
+    const firstFloorId = uuidv7();
+    floorIds['1'] = firstFloorId;
+    await sql`INSERT INTO floors (id, tenant_id, property_id, code, name, sort_order, is_active)
+              VALUES (${firstFloorId}, ${tenantId}, ${propertyId}, '1', 'Floor 1', 1, true)`;
+
+    const amenityIds: Record<string, string> = {};
+    for (const [code, name, category] of ROOM_AMENITIES) {
+      const amenityId = uuidv7();
+      amenityIds[code] = amenityId;
+      await sql`INSERT INTO room_amenities (id, tenant_id, property_id, code, name, category, is_active)
+                VALUES (${amenityId}, ${tenantId}, ${propertyId}, ${code}, ${name}, ${category}, true)`;
+    }
 
     // Room types + rate plan + availability + prices + rooms.
     const ratePlanId = uuidv7();
@@ -307,7 +387,13 @@ async function main(): Promise<void> {
               VALUES (${ratePlanId}, ${tenantId}, ${propertyId}, 'BAR', 'Best Available Rate', 'bar', ${CURRENCY}, true)`;
 
     const roomTypeIds: Record<string, string> = {};
-    const seededRooms: Array<{ id: string; number: string; rtId: string; rtCode: string; price: string }> = [];
+    const seededRooms: Array<{
+      id: string;
+      number: string;
+      rtId: string;
+      rtCode: string;
+      price: string;
+    }> = [];
     let roomNumber = 100;
     for (let ti = 0; ti < ROOM_TYPES.length; ti++) {
       const [code, name, maxOcc, price] = ROOM_TYPES[ti]!;
@@ -318,9 +404,17 @@ async function main(): Promise<void> {
       for (let r = 0; r < 6; r++) {
         roomNumber++;
         const roomId = uuidv7();
+        const floorCode = String(Math.floor(roomNumber / 100));
+        const floorId = floorIds[floorCode] ?? firstFloorId;
         seededRooms.push({ id: roomId, number: String(roomNumber), rtId, rtCode: code, price });
-        await sql`INSERT INTO rooms (id, tenant_id, property_id, room_type_id, number, floor, hk_status, occupancy)
-                  VALUES (${roomId}, ${tenantId}, ${propertyId}, ${rtId}, ${String(roomNumber)}, ${String(Math.floor(roomNumber / 100))}, 'clean', 'vacant')`;
+        await sql`INSERT INTO rooms (id, tenant_id, property_id, room_type_id, number, floor_id, floor, hk_status, occupancy)
+                  VALUES (${roomId}, ${tenantId}, ${propertyId}, ${rtId}, ${String(roomNumber)}, ${floorId}, ${floorCode}, 'clean', 'vacant')`;
+        const assignedAmenities =
+          code === 'KING' ? ['BALCONY', 'TUB'] : code === 'DLX' ? ['OCEAN', 'BALCONY'] : ['WIFI'];
+        for (const amenityCode of assignedAmenities) {
+          await sql`INSERT INTO room_amenity_assignments (id, tenant_id, property_id, room_id, amenity_id)
+                    VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, ${roomId}, ${amenityIds[amenityCode]!})`;
+        }
       }
       for (let i = 0; i < 14; i++) {
         const day = ymd(addDays(today, i));
@@ -392,7 +486,7 @@ async function main(): Promise<void> {
                 VALUES (${uuidv7()}, ${tenantId}, ${resId}, ${guestId}, 'true')`;
       await sql`UPDATE rooms SET occupancy = 'occupied' WHERE id = ${room.id}`;
       await sql`INSERT INTO folios (id, tenant_id, property_id, folio_number, reservation_id, guest_id, type, status, currency, balance)
-                VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, ${`F-${folioSeq++}`}, ${resId}, ${guestId}, 'guest', 'open', ${CURRENCY}, ${(Number(room.price)).toFixed(4)})`;
+                VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, ${`F-${folioSeq++}`}, ${resId}, ${guestId}, 'guest', 'open', ${CURRENCY}, ${Number(room.price).toFixed(4)})`;
     }
 
     // ── POS v1: outlets, floor plan, the Outlet Server role, and tonight's open checks ──
@@ -455,10 +549,33 @@ async function main(): Promise<void> {
       await seedChecks(outletIds.lagoon, 'lagoon', POS_LAGOON_CHECKS);
     }
 
-    console.warn(`\n✓ Seeded "Grand Vela — Ocean Club" with ${arrivals} arrivals in ${Date.now() - t0}ms`);
+    // ── Platform superadmin (the Vela Platform console at /admin) ──
+    {
+      const superadminUserId = uuidv7();
+      await sql`INSERT INTO users (id, name, email, email_verified) VALUES (${superadminUserId}, 'Vela Platform Admin', ${SUPERADMIN_EMAIL}, true)`;
+      await sql`INSERT INTO accounts (id, user_id, account_id, provider_id, password)
+                VALUES (${uuidv7()}, ${superadminUserId}, ${superadminUserId}, 'credential', ${await hashPassword(LOGIN_PASSWORD)})`;
+      const platformRoleId = uuidv7();
+      await sql`INSERT INTO platform_roles (id, key, name, description, is_system)
+                VALUES (${platformRoleId}, 'platform_superadmin', 'Platform Superadmin', 'Full platform administration', true)
+                ON CONFLICT (key) DO NOTHING`;
+      const [{ id: roleId }] = await sql<{ id: string }[]>`
+        SELECT id FROM platform_roles WHERE key = 'platform_superadmin'`;
+      for (const key of expandWildcards(['platform.*'], PLATFORM_PERMISSION_KEYS)) {
+        await sql`INSERT INTO platform_role_permissions (role_id, permission_key)
+                  VALUES (${roleId}, ${key}) ON CONFLICT DO NOTHING`;
+      }
+      await sql`INSERT INTO platform_role_assignments (id, user_id, role_id)
+                VALUES (${uuidv7()}, ${superadminUserId}, ${roleId})`;
+    }
+
+    console.warn(
+      `\n✓ Seeded "Grand Vela — Ocean Club" with ${arrivals} arrivals in ${Date.now() - t0}ms`,
+    );
     console.warn('  Sign in to The Desk with:');
     console.warn(`    front desk: ${LOGIN_EMAIL} / ${LOGIN_PASSWORD}`);
     console.warn(`    GM (owner): ${GM_EMAIL} / ${LOGIN_PASSWORD}`);
+    console.warn(`    superadmin: ${SUPERADMIN_EMAIL} / ${LOGIN_PASSWORD}  →  /admin`);
     console.warn('  Then: pnpm dev  →  http://localhost:3000\n');
   } finally {
     await close();

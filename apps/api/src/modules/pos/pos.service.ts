@@ -373,7 +373,7 @@ export class PosService {
           tenantId: check.tenantId,
           propertyId: check.propertyId,
           checkId,
-          method: p.method as 'card' | 'cash' | 'bank_transfer' | 'ar_transfer' | 'voucher',
+          method: p.method,
           amount: amount.amount,
           currency: amount.currency,
           reference: p.reference ?? null,

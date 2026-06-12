@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PermissionSet, expandWildcards } from './permission-set';
 import { ALL_PERMISSION_KEYS } from './catalog';
+import { PLATFORM_PERMISSION_KEYS } from './platform-catalog';
 
 describe('expandWildcards', () => {
   it('expands `*` to every catalog key', () => {
@@ -17,6 +18,19 @@ describe('expandWildcards', () => {
 
   it('passes concrete keys through unchanged and de-duplicates', () => {
     expect(expandWildcards(['folio.view', 'folio.view'])).toEqual(['folio.view']);
+  });
+
+  it('tenant `*` never leaks platform keys (separate universes)', () => {
+    const tenantStar = expandWildcards(['*']);
+    expect(tenantStar.some((k) => k.startsWith('platform.'))).toBe(false);
+    expect(ALL_PERMISSION_KEYS.some((k) => k.startsWith('platform.'))).toBe(false);
+  });
+
+  it('expands platform wildcards against the platform universe only', () => {
+    const keys = expandWildcards(['platform.*'], PLATFORM_PERMISSION_KEYS);
+    expect(keys.sort()).toEqual([...PLATFORM_PERMISSION_KEYS].sort());
+    expect(keys).toContain('platform.hotel.switch');
+    expect(expandWildcards(['*'], PLATFORM_PERMISSION_KEYS)).not.toContain('payment.refund');
   });
 });
 

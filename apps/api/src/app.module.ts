@@ -7,10 +7,12 @@ import { GuestsModule } from './modules/guests';
 import { HousekeepingModule } from './modules/housekeeping';
 import { KernelModule } from './modules/kernel';
 import { MessagingModule } from './modules/messaging';
+import { PlatformModule } from './modules/platform';
 import { PosModule } from './modules/pos';
 import { RatesModule } from './modules/rates';
 import { ReportsModule } from './modules/reports';
 import { ReservationsModule } from './modules/reservations';
+import { SettingsModule } from './modules/settings';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { ReservationsModule } from './modules/reservations';
     MessagingModule,
     ReportsModule,
     GuestsModule,
+    SettingsModule,
+    PlatformModule,
   ],
 })
 export class AppModule {}

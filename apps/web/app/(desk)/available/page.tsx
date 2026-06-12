@@ -103,6 +103,7 @@ export default function AvailableRoomsPage() {
               <th className={TH}>Room</th>
               <th className={TH}>Type</th>
               <th className={TH}>Floor</th>
+              <th className={TH}>Amenities</th>
               <th className={TH}>Readiness</th>
             </tr>
           </thead>
@@ -110,14 +111,14 @@ export default function AvailableRoomsPage() {
             {isLoading &&
               Array.from({ length: 6 }, (_, index) => (
                 <tr key={index} className="border-b border-[var(--line-hairline)] last:border-0">
-                  <td className={TD} colSpan={4}>
+                  <td className={TD} colSpan={5}>
                     <Skeleton className="h-4 w-full" />
                   </td>
                 </tr>
               ))}
             {!isLoading && rows.length === 0 && (
               <tr>
-                <td className={TD + ' py-8 text-center text-[var(--ink-tertiary)]'} colSpan={4}>
+                <td className={TD + ' py-8 text-center text-[var(--ink-tertiary)]'} colSpan={5}>
                   No available rooms for this window.
                 </td>
               </tr>
@@ -141,6 +142,19 @@ export default function AvailableRoomsPage() {
                 </td>
                 <td className={TD + ' text-[12.5px] text-[var(--ink-secondary)]'}>
                   {room.floor ?? '-'}
+                </td>
+                <td className={TD}>
+                  <span className="flex flex-wrap gap-1">
+                    {room.amenities.length === 0 ? (
+                      <span className="text-[12px] text-[var(--ink-tertiary)]">-</span>
+                    ) : (
+                      room.amenities.map((amenity) => (
+                        <Badge key={amenity.id} tone="accent">
+                          {amenity.code}
+                        </Badge>
+                      ))
+                    )}
+                  </span>
                 </td>
                 <td className={TD}>
                   <RoomStatusChip state={chipState(room)} />

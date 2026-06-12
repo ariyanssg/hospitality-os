@@ -30,8 +30,12 @@ export const TENANT_TABLES: TenantTable[] = [
   { name: 'business_dates', property: true },
   { name: 'idempotency_keys', property: false },
 
+  { name: 'floors', property: true },
+  { name: 'room_amenities', property: true },
+  { name: 'payment_methods', property: true },
   { name: 'room_types', property: true },
   { name: 'rooms', property: true },
+  { name: 'room_amenity_assignments', property: true },
   { name: 'availability_days', property: true },
   { name: 'out_of_order_periods', property: true },
 

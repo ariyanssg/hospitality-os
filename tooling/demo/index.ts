@@ -158,6 +158,15 @@ async function seed(): Promise<Seed> {
     await sql`INSERT INTO tax_rules (id, tenant_id, property_id, code, name, rate_pct, inclusive, applies_to_category, gl_account_code)
               VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'VAT', 'Occupancy Tax', '10.0000', false, 'room', '2100')`;
 
+    // Payment methods — folio payments validate against this catalog (settings module).
+    for (const [code, name, sortOrder] of [
+      ['card', 'Card', 10],
+      ['cash', 'Cash', 20],
+    ] as Array<[string, string, number]>) {
+      await sql`INSERT INTO payment_methods (id, tenant_id, property_id, code, name, category, sort_order, is_active)
+                VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, ${code}, ${name}, 'payment', ${sortOrder}, true)`;
+    }
+
     // Chart of accounts (Phase-0 control accounts).
     const chart: Array<[string, string, string, string]> = [
       ['1000', 'Cash & Bank', 'asset', 'debit'],

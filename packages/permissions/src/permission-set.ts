@@ -3,17 +3,22 @@ import { ALL_PERMISSION_KEYS } from './catalog';
 /**
  * Expands wildcard patterns to concrete catalog keys. Wildcards expand at role-save time so the
  * runtime decision set is always a flat set of concrete strings — evaluation is a hash lookup (doc 06 §1).
- *   `*`            → every permission
+ *   `*`            → every permission in the universe
  *   `reservation.*`→ every key beginning `reservation.`
+ * The universe defaults to the tenant catalog; platform roles expand against
+ * PLATFORM_PERMISSION_KEYS instead, so tenant `'*'` can never reach platform keys.
  */
-export function expandWildcards(patterns: readonly string[]): string[] {
+export function expandWildcards(
+  patterns: readonly string[],
+  universe: readonly string[] = ALL_PERMISSION_KEYS,
+): string[] {
   const out = new Set<string>();
   for (const pattern of patterns) {
     if (pattern === '*') {
-      for (const k of ALL_PERMISSION_KEYS) out.add(k);
+      for (const k of universe) out.add(k);
     } else if (pattern.endsWith('.*')) {
       const prefix = pattern.slice(0, -1); // retains trailing dot
-      for (const k of ALL_PERMISSION_KEYS) if (k.startsWith(prefix)) out.add(k);
+      for (const k of universe) if (k.startsWith(prefix)) out.add(k);
     } else {
       out.add(pattern);
     }

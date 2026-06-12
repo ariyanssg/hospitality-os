@@ -1,8 +1,20 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Bell, CalendarPlus, ChevronDown, LogIn, Moon, Rows2, Rows3, Rows4, Sun } from 'lucide-react';
+import {
+  ArrowLeftCircle,
+  Bell,
+  CalendarPlus,
+  ChevronDown,
+  LogIn,
+  Moon,
+  Rows2,
+  Rows3,
+  Rows4,
+  Sun,
+} from 'lucide-react';
 import { Button, useTheme } from '@vela/ui';
 import { useDeskIntent, useSession, useUiPrefs } from '@/lib/store';
+import { useHotelSwitch } from '@/lib/platform';
 import { PropertySwitcher } from './property-switcher';
 import { CommandK } from './command-k';
 
@@ -10,6 +22,7 @@ import { CommandK } from './command-k';
 export function TopBar() {
   const { theme, toggle } = useTheme();
   const me = useSession((s) => s.me);
+  const switchHotel = useHotelSwitch();
   const density = useUiPrefs((s) => s.density);
   const cycleDensity = useUiPrefs((s) => s.cycleDensity);
   const openReservationCreate = useDeskIntent((s) => s.openReservationCreate);
@@ -44,6 +57,11 @@ export function TopBar() {
       <CommandK />
 
       <div className="ml-auto flex items-center gap-1.5">
+        {me?.isPlatformAdmin && (
+          <Button variant="ghost" size="sm" onClick={() => void switchHotel(null)}>
+            <ArrowLeftCircle className="size-3.5" /> Back to Platform
+          </Button>
+        )}
         <div ref={createRef} className="relative">
           <Button
             variant="primary"

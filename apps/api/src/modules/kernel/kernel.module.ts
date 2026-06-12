@@ -9,10 +9,12 @@ import { HealthController } from './controllers/health.controller';
 import { MeController } from './controllers/me.controller';
 import { RealtimeController } from './controllers/realtime.controller';
 import { DbService } from './db/db.service';
+import { PlatformUnitOfWork } from './db/platform-unit-of-work';
 import { UnitOfWork } from './db/unit-of-work';
 import { ProblemFilter } from './errors/problem.filter';
 import { PermissionGuard } from './permissions/permission.guard';
 import { PermissionService } from './permissions/permission.service';
+import { PlatformPermissionService } from './permissions/platform-permission.service';
 import { RealtimeGateway } from './realtime/realtime.gateway';
 import { WebhooksController } from './webhooks/webhooks.controller';
 import { WebhooksService } from './webhooks/webhooks.service';
@@ -34,9 +36,11 @@ import { WebhooksService } from './webhooks/webhooks.service';
   providers: [
     DbService,
     UnitOfWork,
+    PlatformUnitOfWork,
     AuthService,
     PasswordAuthService,
     PermissionService,
+    PlatformPermissionService,
     ContextService,
     BusinessDateService,
     RealtimeGateway,
@@ -47,9 +51,11 @@ import { WebhooksService } from './webhooks/webhooks.service';
   exports: [
     DbService,
     UnitOfWork,
+    PlatformUnitOfWork,
     AuthService,
     PasswordAuthService,
     PermissionService,
+    PlatformPermissionService,
     ContextService,
     BusinessDateService,
     WebhooksService,

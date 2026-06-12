@@ -16,7 +16,6 @@ import {
   depositStatus,
   folioStatus,
   folioType,
-  paymentMethod,
   paymentStatus,
   postingSourceType,
 } from './enums';
@@ -155,7 +154,7 @@ export const payments = pgTable(
     folioId: uuid('folio_id')
       .notNull()
       .references(() => folios.id),
-    method: paymentMethod('method').notNull(),
+    method: text('method').notNull(),
     amount: money('amount').notNull(),
     currency: currency().notNull(),
     baseAmount: money('base_amount').notNull(),
@@ -183,7 +182,7 @@ export const paymentIntents = pgTable(
     folioId: uuid('folio_id')
       .notNull()
       .references(() => folios.id),
-    method: paymentMethod('method').notNull().default('card'),
+    method: text('method').notNull().default('card'),
     status: text('status').notNull().default('requires_authorization'),
     amount: money('amount').notNull(),
     capturedAmount: money('captured_amount').notNull().default('0'),
@@ -217,7 +216,7 @@ export const deposits = pgTable(
     tenantId: tenantId(),
     propertyId: propertyId(),
     reservationId: uuid('reservation_id').notNull(),
-    method: paymentMethod('method').notNull(),
+    method: text('method').notNull(),
     amount: money('amount').notNull(),
     currency: currency().notNull(),
     status: depositStatus('status').notNull().default('held'),

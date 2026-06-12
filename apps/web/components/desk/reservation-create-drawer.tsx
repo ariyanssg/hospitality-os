@@ -606,6 +606,11 @@ export function ReservationCreateDrawer() {
                               )}
                               <span className="font-mono font-semibold">{room.number}</span>
                               <Badge tone={roomStatusTone(room)}>{room.hkStatus}</Badge>
+                              {room.amenities.slice(0, 2).map((amenity) => (
+                                <Badge key={amenity.id} tone="accent">
+                                  {amenity.code}
+                                </Badge>
+                              ))}
                             </button>
                           );
                         })}

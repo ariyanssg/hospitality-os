@@ -22,7 +22,8 @@ export default function LoginPage() {
       const { token } = await signIn(email, password);
       const me = await createClient({ baseUrl: BASE_URL, token }).me();
       setSession(token, me);
-      router.replace('/arrivals');
+      // Platform admins land on the console; hotel staff land on the boards.
+      router.replace(me.isPlatformAdmin && !me.tenantId ? '/admin' : '/arrivals');
     } catch (err) {
       setError((err as Error).message);
     } finally {

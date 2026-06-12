@@ -169,7 +169,7 @@ export function SettlementDrawer({
       .finally(() => setBusy(false));
   };
 
-  const settlePayment = (method: 'card' | 'cash' | 'ar_transfer' | 'voucher', msg: string) => {
+  const settlePayment = (method: string, msg: string) => {
     if (s.offline) {
       s.enqueueOp({
         key: `close-${check.id}`,
@@ -324,11 +324,13 @@ export function SettlementDrawer({
             {fm(due)}
           </span>
           <span className="flex-1" />
-          <span data-numeric className="font-mono text-xs text-[var(--ink-tertiary)]">
-            sub {fm(view.sub)}
-            {view.svc ? ` · svc ${fm(view.svc)}` : ''}
-            {view.disc ? ` · disc −${fm(view.disc).replace('$', '$')}` : ''}
-          </span>
+          {view.sub > 0 && (
+            <span data-numeric className="font-mono text-xs text-[var(--ink-tertiary)]">
+              sub {fm(view.sub)}
+              {view.svc ? ` · svc ${fm(view.svc)}` : ''}
+              {view.disc ? ` · disc −${fm(view.disc).replace('$', '$')}` : ''}
+            </span>
+          )}
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto px-5 py-[18px]">

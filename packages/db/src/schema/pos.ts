@@ -1,11 +1,5 @@
 import { index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import {
-  offlineOpStatus,
-  paymentMethod,
-  posCheckStatus,
-  posOrderItemStatus,
-  posShiftStatus,
-} from './enums';
+import { offlineOpStatus, posCheckStatus, posOrderItemStatus, posShiftStatus } from './enums';
 import { auditColumns, createdAt, currency, money, pk, propertyId, tenantId } from './_shared';
 
 /** POS v1: floor/table checks, KDS fire queue, offline operation queue, and shift close. */
@@ -105,7 +99,7 @@ export const posPayments = pgTable(
     checkId: uuid('check_id')
       .notNull()
       .references(() => posChecks.id),
-    method: paymentMethod('method').notNull(),
+    method: text('method').notNull(),
     amount: money('amount').notNull(),
     currency: currency().notNull(),
     reference: text('reference'),

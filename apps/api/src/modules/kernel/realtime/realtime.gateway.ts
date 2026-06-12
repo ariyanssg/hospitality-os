@@ -75,12 +75,13 @@ export class RealtimeGateway
   }
 
   async handleConnection(socket: Socket): Promise<void> {
-    const ctx = await this.contextService.build(handshakeHeaders(socket));
-    const propertyId = ctx?.propertyIds[0];
-    if (!ctx || !propertyId || !ctx.permissions.has('reservation.view')) {
+    const built = await this.contextService.build(handshakeHeaders(socket));
+    const propertyId = built?.propertyIds[0];
+    if (!built || built.tenantId === null || !propertyId || !built.permissions.has('reservation.view')) {
       socket.disconnect(true);
       return;
     }
+    const ctx = built as RequestContext;
 
     const room = realtimeRoom(ctx.tenantId, propertyId, 'frontdesk');
     await socket.join(room);

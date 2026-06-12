@@ -15,6 +15,8 @@ import {
   reservationRoomStays,
   reservationStatusLog,
   reservations,
+  roomAmenityAssignments,
+  roomAmenities,
   roomTypes,
   rooms,
   uuidv7,
@@ -33,6 +35,7 @@ import type {
   Reservation,
   ReservationListQuery,
   ReservationListPage,
+  RoomAmenityTag,
   RoomRackRow,
   RoomTypeAvailability,
   SignRegistrationCardInput,
@@ -127,6 +130,42 @@ export class ReservationsService {
     return summary
       ? Money.of(summary.balance, summary.currency).toJSON()
       : Money.zero(currency).toJSON();
+  }
+
+  private async amenitiesForRooms(
+    tx: DbTransaction,
+    propertyId: string,
+    roomIds: string[],
+  ): Promise<Map<string, RoomAmenityTag[]>> {
+    if (roomIds.length === 0) return new Map();
+    const ctx = getRequestContext();
+    const rows = await tx
+      .select({
+        roomId: roomAmenityAssignments.roomId,
+        id: roomAmenities.id,
+        code: roomAmenities.code,
+        name: roomAmenities.name,
+        category: roomAmenities.category,
+      })
+      .from(roomAmenityAssignments)
+      .innerJoin(roomAmenities, eq(roomAmenities.id, roomAmenityAssignments.amenityId))
+      .where(
+        and(
+          eq(roomAmenityAssignments.tenantId, ctx.tenantId),
+          eq(roomAmenityAssignments.propertyId, propertyId),
+          eq(roomAmenities.isActive, true),
+          inArray(roomAmenityAssignments.roomId, roomIds),
+        ),
+      )
+      .orderBy(asc(roomAmenities.code));
+
+    const byRoom = new Map<string, RoomAmenityTag[]>();
+    for (const row of rows) {
+      const list = byRoom.get(row.roomId) ?? [];
+      list.push({ id: row.id, code: row.code, name: row.name, category: row.category });
+      byRoom.set(row.roomId, list);
+    }
+    return byRoom;
   }
 
   /** Booking sequence (doc modules/01): price resolve → counter increment → folio create → event. */
@@ -1238,6 +1277,12 @@ export class ReservationsService {
       byRoom.set(s.roomId, list);
     }
 
+    const amenities = await this.amenitiesForRooms(
+      tx,
+      propertyId,
+      roomRows.map((r) => r.roomId),
+    );
+
     return roomRows.map((r) => ({
       roomId: r.roomId,
       number: r.number,
@@ -1246,6 +1291,7 @@ export class ReservationsService {
       roomTypeCode: r.roomTypeCode,
       hkStatus: r.hkStatus,
       occupancy: r.occupancy,
+      amenities: amenities.get(r.roomId) ?? [],
       stays: (byRoom.get(r.roomId) ?? []).sort((a, b) => a.fromDate.localeCompare(b.fromDate)),
     }));
   }
@@ -1328,6 +1374,11 @@ export class ReservationsService {
 
     const usedByType = new Map<string, number>();
     const available: AvailableRoom[] = [];
+    const amenityMap = await this.amenitiesForRooms(
+      tx,
+      propertyId,
+      roomRows.map((room) => room.roomId),
+    );
     for (const room of roomRows) {
       if (room.occupancy !== 'vacant') continue;
       if (unavailable.has(room.roomId)) continue;
@@ -1344,6 +1395,7 @@ export class ReservationsService {
         roomTypeName: room.roomTypeName,
         hkStatus: room.hkStatus,
         occupancy: room.occupancy,
+        amenities: amenityMap.get(room.roomId) ?? [],
       });
     }
 

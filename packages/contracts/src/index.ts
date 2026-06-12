@@ -8,6 +8,8 @@ export * from './housekeeping';
 export * from './rates';
 export * from './reports';
 export * from './guests';
+export * from './settings';
+export * from './platform';
 export * from './pos';
 export * from './booking';
 export * from './messaging';

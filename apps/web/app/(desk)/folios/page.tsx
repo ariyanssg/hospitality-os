@@ -10,6 +10,8 @@ import { useCan, useSession, useToast } from '@/lib/store';
 const TH =
   'sticky top-0 z-[2] h-10 whitespace-nowrap bg-[var(--bg-raised)] px-[var(--cell-px)] text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--ink-tertiary)] border-b border-[var(--line-hairline)]';
 const TD = 'h-[var(--row-h)] whitespace-nowrap px-[var(--cell-px)] align-middle';
+const SELECT_CLASS =
+  'flex h-9 rounded-[var(--radius-md)] border border-[var(--line-strong)] bg-[var(--bg-surface)] px-2 text-[12.5px] text-[var(--ink-primary)] focus-visible:border-[var(--line-focus)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--line-focus)]';
 
 /** Folio ledger drawer — the immutable posting trail plus a collect-payment quick action. */
 function FolioDrawer({ guest, onClose }: { guest: InHouseRow | null; onClose: () => void }) {
@@ -17,6 +19,8 @@ function FolioDrawer({ guest, onClose }: { guest: InHouseRow | null; onClose: ()
   const qc = useQueryClient();
   const showToast = useToast((s) => s.show);
   const canCollect = useCan('payment.collect');
+  const propertyId = useSession((s) => s.activePropertyId);
+  const [method, setMethod] = useState('card');
 
   const { data: reservation } = useQuery({
     queryKey: ['reservation', guest?.id],
@@ -28,13 +32,29 @@ function FolioDrawer({ guest, onClose }: { guest: InHouseRow | null; onClose: ()
     queryFn: () => sdk.getFolio(reservation!.folioId!),
     enabled: !!reservation?.folioId,
   });
+  const { data: settings } = useQuery({
+    queryKey: ['settings-catalog', propertyId],
+    queryFn: () => sdk.settingsCatalog(),
+    enabled: !!guest && !!propertyId,
+    refetchOnMount: 'always',
+    staleTime: 0,
+  });
+
+  const paymentMethods =
+    settings?.paymentMethods.filter((paymentMethod) => paymentMethod.isActive) ?? [];
+
+  useEffect(() => {
+    if (paymentMethods.length > 0 && !paymentMethods.some((item) => item.code === method)) {
+      setMethod(paymentMethods[0]!.code);
+    }
+  }, [method, paymentMethods]);
 
   const due = folio ? Number(folio.balance.amount) : 0;
 
   const collect = useMutation({
     mutationFn: () =>
       sdk.recordPayment(reservation!.folioId!, {
-        method: 'card',
+        method,
         amount: { amount: due.toFixed(2), currency: folio!.currency },
         reference: 'desk-folio-settle',
       }),
@@ -135,9 +155,24 @@ function FolioDrawer({ guest, onClose }: { guest: InHouseRow | null; onClose: ()
           </span>
           <span className="flex-1" />
           {canCollect && due > 0 && (
-            <Button onClick={() => collect.mutate()} loading={collect.isPending}>
-              <CreditCard className="size-3.5" /> Collect balance
-            </Button>
+            <>
+              <select
+                value={method}
+                onChange={(event) => setMethod(event.target.value)}
+                className={SELECT_CLASS}
+              >
+                {(paymentMethods.length ? paymentMethods : [{ code: 'card', name: 'Card' }]).map(
+                  (paymentMethod) => (
+                    <option key={paymentMethod.code} value={paymentMethod.code}>
+                      {paymentMethod.name}
+                    </option>
+                  ),
+                )}
+              </select>
+              <Button onClick={() => collect.mutate()} loading={collect.isPending}>
+                <CreditCard className="size-3.5" /> Collect balance
+              </Button>
+            </>
           )}
         </footer>
         <style>{`

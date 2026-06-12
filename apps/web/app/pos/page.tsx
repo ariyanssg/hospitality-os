@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { usePos } from '@/lib/pos-store';
 import {
   buildCheckView,
@@ -53,6 +53,12 @@ export default function PosPage() {
     [activeCheck, clientLines, discount, quick],
   );
 
+  // Keep the settling check mounted after close removes it from the open-checks query —
+  // the posted confirmation (folio + GL) renders from this snapshot.
+  const lastCheckRef = useRef(activeCheck);
+  if (activeCheck) lastCheckRef.current = activeCheck;
+  const settleCheck = activeCheck ?? lastCheckRef.current;
+
   const openChecks = (checks ?? []).filter((c) => !locallyClosed[c.id]);
   const e86Count = Object.values(usePos((st) => st.e86)).filter(Boolean).length;
 
@@ -90,8 +96,8 @@ export default function PosPage() {
 
       {s.screen === 'manager' && <ManagerScreen outlets={outlets} openChecks={openChecks.length} />}
 
-      {s.payStep && activeCheck && (
-        <SettlementDrawer check={activeCheck} tables={tables ?? []} view={view} />
+      {s.payStep && settleCheck && (
+        <SettlementDrawer check={settleCheck} tables={tables ?? []} view={view} />
       )}
       <PosToast />
     </>

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DensityProvider } from '@vela/ui';
 import { useSession } from '@/lib/store';
@@ -11,10 +11,19 @@ import { useSession } from '@/lib/store';
 export default function PosLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const token = useSession((s) => s.token);
+  // The session store rehydrates from localStorage asynchronously — gate only once it has.
+  // Optional-chained: the persist API is absent during the server prerender of this page.
+  const [hydrated, setHydrated] = useState(() => useSession.persist?.hasHydrated() ?? false);
 
   useEffect(() => {
-    if (!token) router.replace('/login');
-  }, [token, router]);
+    const unsub = useSession.persist.onFinishHydration(() => setHydrated(true));
+    if (useSession.persist.hasHydrated()) setHydrated(true);
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (hydrated && !token) router.replace('/login');
+  }, [hydrated, token, router]);
 
   if (!token) return null;
 

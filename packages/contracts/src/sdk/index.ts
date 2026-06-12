@@ -60,6 +60,28 @@ import type { PriceGridUpdateInput, RatePlan, RatePriceRow } from '../rates';
 import type { ManagerFlash } from '../reports';
 import type { GuestProfile, GuestSearchPage, UpdateGuestInput } from '../guests';
 import type {
+  ChargeType,
+  CreateChargeTypeInput,
+  CreateFloorInput,
+  CreatePaymentMethodInput,
+  CreateRoomAmenityInput,
+  CreateRoomInput,
+  CreateRoomTypeSettingInput,
+  Floor,
+  PaymentMethod,
+  RoomAmenity,
+  RoomSetting,
+  RoomTypeSetting,
+  SettingsDeleteResult,
+  SettingsCatalog,
+  UpdateChargeTypeInput,
+  UpdateFloorInput,
+  UpdatePaymentMethodInput,
+  UpdateRoomAmenityInput,
+  UpdateRoomInput,
+  UpdateRoomTypeSettingInput,
+} from '../settings';
+import type {
   AddPosItemInput,
   BookingSession,
   ClosePosCheckInput,
@@ -89,6 +111,22 @@ import type {
   WebhookEndpoint,
   WebhookSecret,
 } from '../webhooks';
+import type {
+  CreateHotelInput,
+  CreateHotelUserInput,
+  CreateSuperadminInput,
+  Hotel,
+  HotelDetail,
+  HotelUser,
+  PlatformDeleteResult,
+  PlatformRole,
+  ResetPasswordInput,
+  Superadmin,
+  SwitchContextResult,
+  UpdateHotelInput,
+  UpdatePlatformUserInput,
+  UpdateSuperadminInput,
+} from '../platform';
 import type { z } from '../zod';
 
 /** Error carrying the RFC 9457 problem document — every failure has a stable `code` + `correlationId`. */
@@ -362,6 +400,57 @@ export function createClient(opts: SdkOptions) {
     updateRatePrices: (ratePlanId: string, input: PriceGridUpdateInput, call?: CallOptions) =>
       request<RatePriceRow[]>('PUT', `/rate-plans/${ratePlanId}/prices`, input, call),
 
+    // ── Settings catalogs ──
+    settingsCatalog: (call?: CallOptions) =>
+      request<SettingsCatalog>('GET', '/settings/catalog', undefined, call),
+    floors: (call?: CallOptions) => request<Floor[]>('GET', '/settings/floors', undefined, call),
+    createFloor: (input: CreateFloorInput, call?: CallOptions) =>
+      request<Floor>('POST', '/settings/floors', input, call),
+    updateFloor: (id: string, input: UpdateFloorInput, call?: CallOptions) =>
+      request<Floor>('PATCH', `/settings/floors/${id}`, input, call),
+    removeFloor: (id: string, call?: CallOptions) =>
+      request<SettingsDeleteResult>('DELETE', `/settings/floors/${id}`, undefined, call),
+    roomTypes: (call?: CallOptions) =>
+      request<RoomTypeSetting[]>('GET', '/settings/room-types', undefined, call),
+    createRoomType: (input: CreateRoomTypeSettingInput, call?: CallOptions) =>
+      request<RoomTypeSetting>('POST', '/settings/room-types', input, call),
+    updateRoomType: (id: string, input: UpdateRoomTypeSettingInput, call?: CallOptions) =>
+      request<RoomTypeSetting>('PATCH', `/settings/room-types/${id}`, input, call),
+    removeRoomType: (id: string, call?: CallOptions) =>
+      request<SettingsDeleteResult>('DELETE', `/settings/room-types/${id}`, undefined, call),
+    roomAmenities: (call?: CallOptions) =>
+      request<RoomAmenity[]>('GET', '/settings/amenities', undefined, call),
+    createRoomAmenity: (input: CreateRoomAmenityInput, call?: CallOptions) =>
+      request<RoomAmenity>('POST', '/settings/amenities', input, call),
+    updateRoomAmenity: (id: string, input: UpdateRoomAmenityInput, call?: CallOptions) =>
+      request<RoomAmenity>('PATCH', `/settings/amenities/${id}`, input, call),
+    removeRoomAmenity: (id: string, call?: CallOptions) =>
+      request<SettingsDeleteResult>('DELETE', `/settings/amenities/${id}`, undefined, call),
+    rooms: (call?: CallOptions) =>
+      request<RoomSetting[]>('GET', '/settings/rooms', undefined, call),
+    createRoom: (input: CreateRoomInput, call?: CallOptions) =>
+      request<RoomSetting>('POST', '/settings/rooms', input, call),
+    updateRoom: (id: string, input: UpdateRoomInput, call?: CallOptions) =>
+      request<RoomSetting>('PATCH', `/settings/rooms/${id}`, input, call),
+    removeRoom: (id: string, call?: CallOptions) =>
+      request<SettingsDeleteResult>('DELETE', `/settings/rooms/${id}`, undefined, call),
+    chargeTypes: (call?: CallOptions) =>
+      request<ChargeType[]>('GET', '/settings/charge-types', undefined, call),
+    createChargeType: (input: CreateChargeTypeInput, call?: CallOptions) =>
+      request<ChargeType>('POST', '/settings/charge-types', input, call),
+    updateChargeType: (id: string, input: UpdateChargeTypeInput, call?: CallOptions) =>
+      request<ChargeType>('PATCH', `/settings/charge-types/${id}`, input, call),
+    removeChargeType: (id: string, call?: CallOptions) =>
+      request<SettingsDeleteResult>('DELETE', `/settings/charge-types/${id}`, undefined, call),
+    paymentMethods: (call?: CallOptions) =>
+      request<PaymentMethod[]>('GET', '/settings/payment-methods', undefined, call),
+    createPaymentMethod: (input: CreatePaymentMethodInput, call?: CallOptions) =>
+      request<PaymentMethod>('POST', '/settings/payment-methods', input, call),
+    updatePaymentMethod: (id: string, input: UpdatePaymentMethodInput, call?: CallOptions) =>
+      request<PaymentMethod>('PATCH', `/settings/payment-methods/${id}`, input, call),
+    removePaymentMethod: (id: string, call?: CallOptions) =>
+      request<SettingsDeleteResult>('DELETE', `/settings/payment-methods/${id}`, undefined, call),
+
     // ── Reports & guests ──
     managerFlash: (query: { businessDate?: string } = {}, call?: CallOptions) =>
       request<ManagerFlash>('GET', '/reports/manager-flash', undefined, { ...call, query }),
@@ -465,5 +554,38 @@ export function createClient(opts: SdkOptions) {
       request<WebhookEndpoint>('POST', `/webhooks/endpoints/${id}/disable`, {}, call),
     redeliverWebhook: (id: string, call?: CallOptions) =>
       request<WebhookDelivery>('POST', `/webhooks/deliveries/${id}/redeliver`, {}, call),
+
+    // ── Platform (superadmin) administration ──
+    listHotels: (call?: CallOptions) => request<Hotel[]>('GET', '/platform/hotels', undefined, call),
+    createHotel: (input: CreateHotelInput, call?: CallOptions) =>
+      request<HotelDetail>('POST', '/platform/hotels', input, call),
+    getHotel: (id: string, call?: CallOptions) =>
+      request<HotelDetail>('GET', `/platform/hotels/${id}`, undefined, call),
+    updateHotel: (id: string, input: UpdateHotelInput, call?: CallOptions) =>
+      request<HotelDetail>('PATCH', `/platform/hotels/${id}`, input, call),
+    suspendHotel: (id: string, call?: CallOptions) =>
+      request<HotelDetail>('POST', `/platform/hotels/${id}/suspend`, {}, call),
+    reactivateHotel: (id: string, call?: CallOptions) =>
+      request<HotelDetail>('POST', `/platform/hotels/${id}/reactivate`, {}, call),
+    listHotelUsers: (id: string, call?: CallOptions) =>
+      request<HotelUser[]>('GET', `/platform/hotels/${id}/users`, undefined, call),
+    createHotelUser: (id: string, input: CreateHotelUserInput, call?: CallOptions) =>
+      request<HotelUser>('POST', `/platform/hotels/${id}/users`, input, call),
+    updatePlatformUser: (userId: string, input: UpdatePlatformUserInput, call?: CallOptions) =>
+      request<{ userId: string }>('PATCH', `/platform/users/${userId}`, input, call),
+    resetUserPassword: (userId: string, input: ResetPasswordInput, call?: CallOptions) =>
+      request<{ userId: string }>('POST', `/platform/users/${userId}/password`, input, call),
+    listPlatformRoles: (call?: CallOptions) =>
+      request<PlatformRole[]>('GET', '/platform/roles', undefined, call),
+    listSuperadmins: (call?: CallOptions) =>
+      request<Superadmin[]>('GET', '/platform/superadmins', undefined, call),
+    createSuperadmin: (input: CreateSuperadminInput, call?: CallOptions) =>
+      request<Superadmin>('POST', '/platform/superadmins', input, call),
+    updateSuperadmin: (userId: string, input: UpdateSuperadminInput, call?: CallOptions) =>
+      request<Superadmin>('PATCH', `/platform/superadmins/${userId}`, input, call),
+    removeSuperadmin: (userId: string, call?: CallOptions) =>
+      request<PlatformDeleteResult>('DELETE', `/platform/superadmins/${userId}`, undefined, call),
+    switchContext: (tenantId: string | null, call?: CallOptions) =>
+      request<SwitchContextResult>('POST', '/platform/context', { tenantId }, call),
   };
 }

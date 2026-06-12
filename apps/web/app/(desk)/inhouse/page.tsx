@@ -11,25 +11,44 @@ const TH =
   'sticky top-0 z-[2] h-10 whitespace-nowrap bg-[var(--bg-raised)] px-[var(--cell-px)] text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--ink-tertiary)] border-b border-[var(--line-hairline)]';
 const TD = 'h-[var(--row-h)] whitespace-nowrap px-[var(--cell-px)] align-middle';
 
-const CHARGE_CODES = [
-  { code: 'MINIBAR', label: 'Minibar' },
-  { code: 'MISC', label: 'Miscellaneous' },
-] as const;
-
 /** Post-charge dialog — one ACID transaction away from the folio, like a POS check mid-meal. */
 function PostChargeDialog({ guest, onClose }: { guest: InHouseRow | null; onClose: () => void }) {
   const sdk = useSdk();
   const qc = useQueryClient();
   const showToast = useToast((s) => s.show);
-  const [code, setCode] = useState<string>(CHARGE_CODES[0].code);
+  const propertyId = useSession((s) => s.activePropertyId);
+  const [code, setCode] = useState<string>('MISC');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 
+  const { data: settings } = useQuery({
+    queryKey: ['settings-catalog', propertyId],
+    queryFn: () => sdk.settingsCatalog(),
+    enabled: !!guest && !!propertyId,
+    refetchOnMount: 'always',
+    staleTime: 0,
+  });
+
+  const chargeTypes = (
+    settings?.chargeTypes.filter(
+      (charge) => charge.isActive && !['payment', 'tax'].includes(charge.category),
+    ) ?? []
+  ).map((charge) => ({ code: charge.code, label: charge.name }));
+  const choices = chargeTypes.length
+    ? chargeTypes
+    : [
+        { code: 'MINIBAR', label: 'Minibar' },
+        { code: 'MISC', label: 'Miscellaneous' },
+      ];
+
   useEffect(() => {
-    setCode(CHARGE_CODES[0].code);
     setAmount('');
     setDescription('');
   }, [guest?.id]);
+
+  useEffect(() => {
+    if (!choices.some((choice) => choice.code === code)) setCode(choices[0]!.code);
+  }, [choices, code]);
 
   const post = useMutation({
     mutationFn: async () => {
@@ -94,7 +113,7 @@ function PostChargeDialog({ guest, onClose }: { guest: InHouseRow | null; onClos
         </div>
         <div className="flex flex-col gap-3">
           <div className="flex gap-1 rounded-[var(--radius-md)] border border-[var(--line-hairline)] bg-[var(--bg-sunken)] p-1">
-            {CHARGE_CODES.map((c) => (
+            {choices.map((c) => (
               <button
                 key={c.code}
                 onClick={() => setCode(c.code)}

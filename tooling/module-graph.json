@@ -15,6 +15,7 @@
     "gl": ["kernel"],
     "folio": ["kernel", "gl"],
     "reservations": ["kernel", "availability", "rates", "folio", "gl"],
+    "settings": ["kernel"],
 
     "front-desk": ["kernel", "reservations", "availability", "rates", "folio"],
     "housekeeping": ["kernel", "front-desk"],

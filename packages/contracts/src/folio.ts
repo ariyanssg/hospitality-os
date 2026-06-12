@@ -13,7 +13,7 @@ export type PostChargeInput = z.infer<typeof PostChargeSchema>;
 
 export const RecordPaymentSchema = z
   .object({
-    method: z.enum(['card', 'cash', 'bank_transfer', 'ar_transfer', 'voucher']),
+    method: z.string().trim().min(1),
     amount: MoneySchema,
     reference: z.string().optional(),
     pspToken: z.string().optional(),
@@ -25,7 +25,7 @@ export const PaymentIntentSchema = z
   .object({
     id: Uuid,
     folioId: Uuid,
-    method: z.enum(['card', 'cash', 'bank_transfer', 'ar_transfer', 'voucher', 'deposit']),
+    method: z.string(),
     status: z.enum(['requires_authorization', 'authorized', 'captured', 'voided', 'failed']),
     amount: MoneySchema,
     capturedAmount: MoneySchema,
@@ -133,7 +133,7 @@ export type CashierSession = z.infer<typeof CashierSessionSchema>;
 // ── Deposits ──
 export const RecordDepositSchema = z
   .object({
-    method: z.enum(['card', 'cash', 'bank_transfer', 'voucher']),
+    method: z.string().trim().min(1),
     amount: MoneySchema,
     reference: z.string().optional(),
   })

@@ -88,6 +88,29 @@ import {
   UpdateGuestSchema,
 } from './guests';
 import {
+  ChargeTypeSchema,
+  CreateChargeTypeSchema,
+  CreateFloorSchema,
+  CreatePaymentMethodSchema,
+  CreateRoomAmenitySchema,
+  CreateRoomSchema,
+  CreateRoomTypeSettingSchema,
+  FloorSchema,
+  PaymentMethodSchema,
+  RoomAmenitySchema,
+  RoomAmenityTagSchema,
+  RoomSettingSchema,
+  RoomTypeSettingSchema,
+  SettingsDeleteResultSchema,
+  SettingsCatalogSchema,
+  UpdateChargeTypeSchema,
+  UpdateFloorSchema,
+  UpdatePaymentMethodSchema,
+  UpdateRoomAmenitySchema,
+  UpdateRoomSchema,
+  UpdateRoomTypeSettingSchema,
+} from './settings';
+import {
   AddPosItemSchema,
   ClosePosCheckSchema,
   ClosePosShiftSchema,
@@ -127,6 +150,23 @@ import {
   WebhookEndpointSchema,
   WebhookSecretSchema,
 } from './webhooks';
+import {
+  CreateHotelSchema,
+  CreateHotelUserSchema,
+  CreateSuperadminSchema,
+  HotelDetailSchema,
+  HotelSchema,
+  HotelUserSchema,
+  PlatformDeleteResultSchema,
+  PlatformRoleSchema,
+  ResetPasswordSchema,
+  SuperadminSchema,
+  SwitchContextResultSchema,
+  SwitchContextSchema,
+  UpdateHotelSchema,
+  UpdatePlatformUserSchema,
+  UpdateSuperadminSchema,
+} from './platform';
 
 /**
  * Code-first OpenAPI (doc 08 §7). The same Zod schemas validate the API boundary and generate this
@@ -202,6 +242,27 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     GuestSearchPage: GuestSearchPageSchema,
     GuestProfile: GuestProfileSchema,
     UpdateGuest: UpdateGuestSchema,
+    Floor: FloorSchema,
+    CreateFloor: CreateFloorSchema,
+    UpdateFloor: UpdateFloorSchema,
+    RoomAmenityTag: RoomAmenityTagSchema,
+    RoomAmenity: RoomAmenitySchema,
+    CreateRoomAmenity: CreateRoomAmenitySchema,
+    UpdateRoomAmenity: UpdateRoomAmenitySchema,
+    RoomTypeSetting: RoomTypeSettingSchema,
+    CreateRoomTypeSetting: CreateRoomTypeSettingSchema,
+    UpdateRoomTypeSetting: UpdateRoomTypeSettingSchema,
+    RoomSetting: RoomSettingSchema,
+    CreateRoom: CreateRoomSchema,
+    UpdateRoom: UpdateRoomSchema,
+    ChargeType: ChargeTypeSchema,
+    CreateChargeType: CreateChargeTypeSchema,
+    UpdateChargeType: UpdateChargeTypeSchema,
+    PaymentMethod: PaymentMethodSchema,
+    CreatePaymentMethod: CreatePaymentMethodSchema,
+    UpdatePaymentMethod: UpdatePaymentMethodSchema,
+    SettingsDeleteResult: SettingsDeleteResultSchema,
+    SettingsCatalog: SettingsCatalogSchema,
     PosOutlet: PosOutletSchema,
     PosTable: PosTableSchema,
     PosCheck: PosCheckSchema,
@@ -231,6 +292,21 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     CreateWebhookEndpoint: CreateWebhookEndpointSchema,
     WebhookSecret: WebhookSecretSchema,
     WebhookDelivery: WebhookDeliverySchema,
+    Hotel: HotelSchema,
+    HotelDetail: HotelDetailSchema,
+    CreateHotel: CreateHotelSchema,
+    UpdateHotel: UpdateHotelSchema,
+    HotelUser: HotelUserSchema,
+    CreateHotelUser: CreateHotelUserSchema,
+    UpdatePlatformUser: UpdatePlatformUserSchema,
+    ResetPassword: ResetPasswordSchema,
+    PlatformRole: PlatformRoleSchema,
+    Superadmin: SuperadminSchema,
+    CreateSuperadmin: CreateSuperadminSchema,
+    UpdateSuperadmin: UpdateSuperadminSchema,
+    SwitchContext: SwitchContextSchema,
+    SwitchContextResult: SwitchContextResultSchema,
+    PlatformDeleteResult: PlatformDeleteResultSchema,
   };
   for (const [name, schema] of Object.entries(components)) r.register(name, schema);
 
@@ -765,6 +841,111 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     responses: { 200: { description: 'Updated prices', ...json(z.array(RatePriceRowSchema)) } },
   });
 
+  // ── Settings catalogs ──
+  r.registerPath({
+    method: 'get',
+    path: '/settings/catalog',
+    summary: 'Property settings catalog',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Settings catalog', ...json(SettingsCatalogSchema) } },
+  });
+
+  for (const [path, schema] of [
+    ['/settings/floors', FloorSchema],
+    ['/settings/room-types', RoomTypeSettingSchema],
+    ['/settings/amenities', RoomAmenitySchema],
+    ['/settings/rooms', RoomSettingSchema],
+    ['/settings/charge-types', ChargeTypeSchema],
+    ['/settings/payment-methods', PaymentMethodSchema],
+  ] as const) {
+    const label = path.split('/').slice(-1)[0];
+    r.registerPath({
+      method: 'get',
+      path,
+      summary: `List ${label}`,
+      request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+      responses: { 200: { description: 'Rows', ...json(z.array(schema)) } },
+    });
+  }
+
+  for (const [path, body, response] of [
+    ['/settings/floors', CreateFloorSchema, FloorSchema],
+    ['/settings/room-types', CreateRoomTypeSettingSchema, RoomTypeSettingSchema],
+    ['/settings/amenities', CreateRoomAmenitySchema, RoomAmenitySchema],
+    ['/settings/rooms', CreateRoomSchema, RoomSettingSchema],
+    ['/settings/charge-types', CreateChargeTypeSchema, ChargeTypeSchema],
+    ['/settings/payment-methods', CreatePaymentMethodSchema, PaymentMethodSchema],
+  ] as const) {
+    const label = path.split('/').slice(-1)[0];
+    r.registerPath({
+      method: 'post',
+      path,
+      summary: `Create ${label}`,
+      request: {
+        headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+        body: json(body),
+      },
+      responses: {
+        201: { description: 'Created', ...json(response) },
+        403: problem('PERMISSION_DENIED'),
+        422: problem('VALIDATION_FAILED'),
+      },
+    });
+  }
+
+  for (const [path, body, response] of [
+    ['/settings/floors/{id}', UpdateFloorSchema, FloorSchema],
+    ['/settings/room-types/{id}', UpdateRoomTypeSettingSchema, RoomTypeSettingSchema],
+    ['/settings/amenities/{id}', UpdateRoomAmenitySchema, RoomAmenitySchema],
+    ['/settings/rooms/{id}', UpdateRoomSchema, RoomSettingSchema],
+    ['/settings/charge-types/{id}', UpdateChargeTypeSchema, ChargeTypeSchema],
+    ['/settings/payment-methods/{id}', UpdatePaymentMethodSchema, PaymentMethodSchema],
+  ] as const) {
+    const label = path.split('/').slice(-2)[0];
+    r.registerPath({
+      method: 'patch',
+      path,
+      summary: `Update ${label}`,
+      request: {
+        params: z.object({ id: z.string().uuid() }),
+        headers: z.object({ 'X-Property-Id': propertyHeader }),
+        body: json(body),
+      },
+      responses: {
+        200: { description: 'Updated', ...json(response) },
+        403: problem('PERMISSION_DENIED'),
+        404: problem('NOT_FOUND'),
+        422: problem('VALIDATION_FAILED'),
+      },
+    });
+  }
+
+  for (const path of [
+    '/settings/floors/{id}',
+    '/settings/room-types/{id}',
+    '/settings/amenities/{id}',
+    '/settings/rooms/{id}',
+    '/settings/charge-types/{id}',
+    '/settings/payment-methods/{id}',
+  ] as const) {
+    const label = path.split('/').slice(-2)[0];
+    r.registerPath({
+      method: 'delete',
+      path,
+      summary: `Remove ${label}`,
+      request: {
+        params: z.object({ id: z.string().uuid() }),
+        headers: z.object({ 'X-Property-Id': propertyHeader }),
+      },
+      responses: {
+        200: { description: 'Removed', ...json(SettingsDeleteResultSchema) },
+        403: problem('PERMISSION_DENIED'),
+        404: problem('NOT_FOUND'),
+        409: problem('STATE_CONFLICT'),
+      },
+    });
+  }
+
   // ── Reports & guests ──
   r.registerPath({
     method: 'get',
@@ -1065,6 +1246,139 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       body: json(NightAuditRunSchema),
     },
     responses: { 200: { description: 'Result', ...json(NightAuditResultSchema) } },
+  });
+
+  // ── Platform (superadmin) administration ──
+  r.registerPath({
+    method: 'get',
+    path: '/platform/hotels',
+    summary: 'List hotels across the platform (superadmin)',
+    responses: {
+      200: { description: 'Hotels', ...json(z.array(HotelSchema)) },
+      403: problem('PERMISSION_DENIED'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/platform/hotels',
+    summary: 'Provision a hotel: tenant + default property + role/financial baseline',
+    request: { body: json(CreateHotelSchema) },
+    responses: {
+      201: { description: 'Created', ...json(HotelDetailSchema) },
+      409: problem('SLUG_TAKEN'),
+      422: problem('VALIDATION_FAILED'),
+    },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/platform/hotels/{id}',
+    summary: 'Hotel detail with properties and users',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+      200: { description: 'Hotel', ...json(HotelDetailSchema) },
+      404: problem('Not found'),
+    },
+  });
+  r.registerPath({
+    method: 'patch',
+    path: '/platform/hotels/{id}',
+    summary: 'Edit hotel name/slug',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(UpdateHotelSchema) },
+    responses: {
+      200: { description: 'Hotel', ...json(HotelDetailSchema) },
+      409: problem('SLUG_TAKEN'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/platform/hotels/{id}/suspend',
+    summary: 'Suspend a hotel (locks its users out; soft delete)',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { description: 'Hotel', ...json(HotelDetailSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/platform/hotels/{id}/reactivate',
+    summary: 'Reactivate a suspended hotel',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { description: 'Hotel', ...json(HotelDetailSchema) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/platform/hotels/{id}/users',
+    summary: 'List a hotel’s users with their roles',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { description: 'Users', ...json(z.array(HotelUserSchema)) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/platform/hotels/{id}/users',
+    summary: 'Create a hotel user with a role template (Hotel Admin, Accounts, Front Desk, …)',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(CreateHotelUserSchema) },
+    responses: {
+      201: { description: 'User', ...json(HotelUserSchema) },
+      409: problem('ALREADY_MEMBER'),
+    },
+  });
+  r.registerPath({
+    method: 'patch',
+    path: '/platform/users/{userId}',
+    summary: 'Edit a user (name, membership status)',
+    request: { params: z.object({ userId: z.string() }), body: json(UpdatePlatformUserSchema) },
+    responses: { 200: { description: 'User id', ...json(z.object({ userId: z.string() })) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/platform/users/{userId}/password',
+    summary: 'Administrative password reset (revokes the user’s sessions)',
+    request: { params: z.object({ userId: z.string() }), body: json(ResetPasswordSchema) },
+    responses: { 200: { description: 'User id', ...json(z.object({ userId: z.string() })) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/platform/roles',
+    summary: 'List platform roles and their permission keys',
+    responses: { 200: { description: 'Platform roles', ...json(z.array(PlatformRoleSchema)) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/platform/superadmins',
+    summary: 'List platform administrators',
+    responses: { 200: { description: 'Superadmins', ...json(z.array(SuperadminSchema)) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/platform/superadmins',
+    summary: 'Create a platform administrator',
+    request: { body: json(CreateSuperadminSchema) },
+    responses: { 201: { description: 'Superadmin', ...json(SuperadminSchema) } },
+  });
+  r.registerPath({
+    method: 'patch',
+    path: '/platform/superadmins/{userId}',
+    summary: 'Replace a platform administrator’s role grants',
+    request: { params: z.object({ userId: z.string() }), body: json(UpdateSuperadminSchema) },
+    responses: {
+      200: { description: 'Superadmin', ...json(SuperadminSchema) },
+      409: problem('LAST_SUPERADMIN'),
+    },
+  });
+  r.registerPath({
+    method: 'delete',
+    path: '/platform/superadmins/{userId}',
+    summary: 'Revoke all platform roles from a user',
+    request: { params: z.object({ userId: z.string() }) },
+    responses: {
+      200: { description: 'Removed', ...json(PlatformDeleteResultSchema) },
+      409: problem('LAST_SUPERADMIN'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/platform/context',
+    summary: 'Switch the session’s active hotel (the Hotel Selector); null returns to platform',
+    request: { body: json(SwitchContextSchema) },
+    responses: { 200: { description: 'Active tenant', ...json(SwitchContextResultSchema) } },
   });
 
   const generator = new OpenApiGeneratorV3(r.definitions);

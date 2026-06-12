@@ -7,21 +7,26 @@ export { KernelModule } from './kernel.module';
 export { DbService } from './db/db.service';
 export { UnitOfWork } from './db/unit-of-work';
 export type { UowHelpers, AuditEntry } from './db/unit-of-work';
+export { PlatformUnitOfWork } from './db/platform-unit-of-work';
+export type { PlatformUowHelpers, PlatformAuditEntry } from './db/platform-unit-of-work';
+export { PlatformPermissionService } from './permissions/platform-permission.service';
 export { BusinessDateService } from './business-date/business-date.service';
 export { ContextService } from './context/context.service';
 export { AuthService } from './auth/auth.service';
 export { PasswordAuthService } from './auth/password-auth.service';
+export { hashPassword } from './auth/password.util';
 
 export {
   getRequestContext,
+  getAnyRequestContext,
   maybeRequestContext,
   runWithContext,
   enterContext,
   beginContextScope,
   setRequestContext,
 } from './context/request-context';
-export type { RequestContext } from './context/request-context';
-export { Ctx } from './context/context.decorator';
+export type { RequestContext, AnyRequestContext } from './context/request-context';
+export { Ctx, AnyCtx } from './context/context.decorator';
 
 export {
   RequirePermission,

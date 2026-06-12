@@ -6,6 +6,7 @@ import {
   deposits,
   folioPostings,
   folios,
+  paymentMethods,
   paymentIntents,
   payments,
   reservations,
@@ -60,7 +61,7 @@ export interface PostChargeInternal {
 
 export interface RecordPaymentInternal {
   folioId: string;
-  method: 'card' | 'cash' | 'bank_transfer' | 'ar_transfer' | 'voucher';
+  method: string;
   amount: Money;
   businessDate?: string;
   reference?: string;
@@ -126,6 +127,27 @@ export class FolioService {
     await this.loadOpenFolio(tx, folioId, propertyId);
   }
 
+  private async assertPaymentMethodActive(
+    tx: DbTransaction,
+    propertyId: string,
+    method: string,
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    const [row] = await tx
+      .select({ id: paymentMethods.id })
+      .from(paymentMethods)
+      .where(
+        and(
+          eq(paymentMethods.tenantId, ctx.tenantId),
+          eq(paymentMethods.propertyId, propertyId),
+          eq(paymentMethods.code, method),
+          eq(paymentMethods.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (!row) throw new NotFoundError(`Payment method ${method}`);
+  }
+
   async postCharge(
     tx: DbTransaction,
     helpers: UowHelpers,
@@ -139,7 +161,13 @@ export class FolioService {
     const [code] = await tx
       .select()
       .from(chargeCodes)
-      .where(and(eq(chargeCodes.tenantId, ctx.tenantId), eq(chargeCodes.code, input.chargeCode)))
+      .where(
+        and(
+          eq(chargeCodes.tenantId, ctx.tenantId),
+          eq(chargeCodes.code, input.chargeCode),
+          eq(chargeCodes.isActive, true),
+        ),
+      )
       .limit(1);
     if (!code) throw new NotFoundError(`Charge code ${input.chargeCode}`);
 
@@ -236,6 +264,7 @@ export class FolioService {
     const currency = folio.currency.trim();
     const businessDate =
       input.businessDate ?? (await this.businessDate.current(tx, folio.propertyId));
+    await this.assertPaymentMethodActive(tx, folio.propertyId, input.method);
 
     const [code] = await tx
       .select()
@@ -885,7 +914,7 @@ export class FolioService {
     helpers: UowHelpers,
     reservationId: string,
     input: {
-      method: 'card' | 'cash' | 'bank_transfer' | 'voucher';
+      method: string;
       amount: Money;
       reference?: string;
     },
@@ -915,6 +944,7 @@ export class FolioService {
     if (!input.amount.isPositive()) {
       throw new StateConflictError('Deposit amount must be positive');
     }
+    await this.assertPaymentMethodActive(tx, res.propertyId, input.method);
 
     const id = uuidv7();
     await tx.insert(deposits).values({

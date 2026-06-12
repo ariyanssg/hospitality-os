@@ -1,5 +1,6 @@
 import { z } from './zod';
 import { IsoDate, MoneySchema, Uuid, paginated } from './common';
+import { RoomAmenityTagSchema } from './settings';
 
 export const GuestRefSchema = z.union([
   z.object({ id: Uuid }),
@@ -319,6 +320,7 @@ export const RoomRackRowSchema = z
     roomTypeCode: z.string(),
     hkStatus: z.string(),
     occupancy: z.string(),
+    amenities: z.array(RoomAmenityTagSchema),
     stays: z.array(RoomRackStaySchema),
   })
   .openapi('RoomRackRow');
@@ -342,6 +344,7 @@ export const AvailableRoomSchema = z
     roomTypeName: z.string(),
     hkStatus: z.enum(['dirty', 'clean', 'inspected']),
     occupancy: z.enum(['vacant', 'occupied']),
+    amenities: z.array(RoomAmenityTagSchema),
   })
   .openapi('AvailableRoom');
 export type AvailableRoom = z.infer<typeof AvailableRoomSchema>;

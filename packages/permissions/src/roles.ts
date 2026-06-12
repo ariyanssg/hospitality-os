@@ -184,3 +184,39 @@ const BY_KEY = new Map(SYSTEM_ROLES.map((r) => [r.key, r]));
 export function getSystemRole(key: string): RoleTemplate | undefined {
   return BY_KEY.get(key);
 }
+
+/**
+ * Platform role templates — superadmin RBAC. Wildcards here expand against
+ * PLATFORM_PERMISSION_KEYS (not the tenant catalog); see platform-catalog.ts.
+ */
+export interface PlatformRoleTemplate {
+  key: string;
+  name: string;
+  description: string;
+  permissions: string[];
+}
+
+export const PLATFORM_ROLE_TEMPLATES: readonly PlatformRoleTemplate[] = [
+  {
+    key: 'platform_superadmin',
+    name: 'Platform Superadmin',
+    description: 'Full platform administration: hotels, users, superadmins, context switching.',
+    permissions: ['platform.*'],
+  },
+  {
+    key: 'platform_support',
+    name: 'Platform Support',
+    description: 'Read-only platform visibility plus hotel context switching for support work.',
+    permissions: [
+      'platform.hotel.view',
+      'platform.hotel.switch',
+      'platform.user.view',
+      'platform.audit.view',
+    ],
+  },
+] as const;
+
+const PLATFORM_BY_KEY = new Map(PLATFORM_ROLE_TEMPLATES.map((r) => [r.key, r]));
+export function getPlatformRole(key: string): PlatformRoleTemplate | undefined {
+  return PLATFORM_BY_KEY.get(key);
+}

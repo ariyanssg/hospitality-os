@@ -182,6 +182,14 @@ export default function RackPage() {
                     <span className="text-[10px] tracking-[0.04em] text-[var(--ink-tertiary)]">
                       {r.roomTypeCode}
                     </span>
+                    {r.amenities[0] && (
+                      <span
+                        title={r.amenities.map((amenity) => amenity.name).join(', ')}
+                        className="max-w-[54px] truncate rounded-[var(--radius-sm)] bg-[var(--interactive-selected)] px-1.5 py-[1px] text-[10px] font-medium text-[var(--ink-accent)]"
+                      >
+                        {r.amenities[0].code}
+                      </span>
+                    )}
                     <span
                       title={roomState(r)}
                       className="ml-auto size-[9px] flex-none rounded-full"

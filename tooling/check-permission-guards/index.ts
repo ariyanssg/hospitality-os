@@ -12,12 +12,14 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
-import { ALL_PERMISSION_KEYS } from '@vela/permissions';
+import { ALL_PERMISSION_KEYS, PLATFORM_PERMISSION_KEYS } from '@vela/permissions';
 
 const API_SRC = join(import.meta.dirname, '..', '..', 'apps', 'api', 'src');
 const HTTP_METHODS = new Set(['Get', 'Post', 'Put', 'Patch', 'Delete', 'Options', 'Head', 'All']);
 const AUTHZ = new Set(['RequirePermission', 'Public', 'AuthenticatedOnly']);
-const catalog = new Set<string>(ALL_PERMISSION_KEYS);
+// Tenant + platform catalogs are separate UNIVERSES for wildcard expansion, but both are valid
+// route guards — platform routes declare `platform.*` keys.
+const catalog = new Set<string>([...ALL_PERMISSION_KEYS, ...PLATFORM_PERMISSION_KEYS]);
 
 interface Finding {
   file: string;

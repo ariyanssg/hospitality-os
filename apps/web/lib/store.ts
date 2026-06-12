@@ -36,6 +36,11 @@ export function useCan(permission: string): boolean {
   return useSession((s) => s.me?.permissions.includes(permission) ?? false);
 }
 
+/** Platform (superadmin) permission check — separate universe from the tenant decision set. */
+export function useCanPlatform(permission: string): boolean {
+  return useSession((s) => s.me?.platformPermissions?.includes(permission) ?? false);
+}
+
 // ── UI preferences ──
 export type Density = 'comfortable' | 'compact' | 'touch';
 

@@ -26,6 +26,13 @@ export const EVENT_TYPES = [
   // availability / rates
   'availability.changed',
   'rate.price_changed',
+  // property settings
+  'settings.floor_saved',
+  'settings.room_amenity_saved',
+  'settings.room_type_saved',
+  'settings.room_created',
+  'settings.charge_type_saved',
+  'settings.payment_method_saved',
   // folio / payments
   'folio.charge_posted',
   'folio.payment_recorded',
@@ -65,6 +72,14 @@ export const EVENT_TYPES = [
   'invoice.paid',
   'employee.shift_started',
   'permission.changed',
+  // platform administration (emitted into the target hotel's outbox)
+  'hotel.created',
+  'hotel.updated',
+  'hotel.suspended',
+  'hotel.reactivated',
+  'hotel.user_created',
+  'hotel.user_updated',
+  'user.password_reset',
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];

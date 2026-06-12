@@ -306,7 +306,7 @@ export function usePosOps() {
       settle:
         | {
             kind: 'payment';
-            method: 'card' | 'cash' | 'ar_transfer' | 'voucher';
+            method: string;
             reference?: string;
           }
         | { kind: 'room'; folioId: string },

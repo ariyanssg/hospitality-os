@@ -1,27 +1,12 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
+import { randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { accounts, sessions, users, uuidv7 } from '@vela/db';
 import { DomainError } from '../errors/domain-errors';
 import { DbService } from '../db/db.service';
+import { hashPassword, verifyPassword } from './password.util';
 
-const scrypt = promisify(scryptCb);
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex');
-  const derived = (await scrypt(password, salt, 64)) as Buffer;
-  return `${salt}:${derived.toString('hex')}`;
-}
-
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [salt, hash] = stored.split(':');
-  if (!salt || !hash) return false;
-  const derived = (await scrypt(password, salt, 64)) as Buffer;
-  const expected = Buffer.from(hash, 'hex');
-  return derived.length === expected.length && timingSafeEqual(derived, expected);
-}
 
 /**
  * Phase-0 email/password auth against the Better-Auth-compatible identity tables (users/accounts/
@@ -90,5 +75,42 @@ export class PasswordAuthService {
       activeTenantId: activeTenantId ?? null,
     });
     return token;
+  }
+
+  /** Points an existing session at a different active tenant (platform hotel switching). */
+  async setActiveTenant(token: string, tenantId: string | null): Promise<void> {
+    await this.db.admin
+      .update(sessions)
+      .set({ activeTenantId: tenantId, updatedAt: new Date() })
+      .where(eq(sessions.token, token));
+  }
+
+  /**
+   * Administrative password reset (platform.user.password.reset). Replaces the credential hash and
+   * revokes every OTHER session of the target user — the old password and stolen tokens both die,
+   * while an admin resetting their own password keeps their current session.
+   */
+  async adminSetPassword(userId: string, newPassword: string, keepToken?: string): Promise<void> {
+    const updated = await this.db.admin
+      .update(accounts)
+      .set({ password: await hashPassword(newPassword), updatedAt: new Date() })
+      .where(and(eq(accounts.userId, userId), eq(accounts.providerId, 'credential')))
+      .returning({ id: accounts.id });
+    if (updated.length === 0) {
+      await this.db.admin.insert(accounts).values({
+        id: uuidv7(),
+        userId,
+        accountId: userId,
+        providerId: 'credential',
+        password: await hashPassword(newPassword),
+      });
+    }
+    await this.db.admin
+      .delete(sessions)
+      .where(
+        keepToken
+          ? and(eq(sessions.userId, userId), ne(sessions.token, keepToken))
+          : eq(sessions.userId, userId),
+      );
   }
 }

@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlarmClock,
+  BadgePercent,
   Ban,
   BedDouble,
   CalendarCheck,
@@ -13,6 +14,7 @@ import {
   LayoutGrid,
   MoonStar,
   Receipt,
+  SlidersHorizontal,
   Sparkles,
   Users,
   UtensilsCrossed,
@@ -28,6 +30,7 @@ const TABS = [
   { href: '/rack', label: 'Rack', icon: BedDouble, badge: null },
   { href: '/available', label: 'Available', icon: DoorOpen, badge: null },
   { href: '/groups', label: 'Groups', icon: ContactRound, badge: null },
+  { href: '/rates', label: 'Rates', icon: BadgePercent, badge: null },
   { href: '/inhouse', label: 'In-house', icon: Users, badge: null },
   { href: '/departures', label: 'Departures', icon: DoorOpen, badge: 'departures' },
   { href: '/folios', label: 'Folios', icon: Receipt, badge: null },
@@ -38,6 +41,7 @@ const TABS = [
   { href: '/no-shows', label: 'No-shows', icon: CalendarX, badge: null },
   { href: '/audit', label: 'Night audit', icon: MoonStar, badge: null },
   { href: '/pos', label: 'POS terminal', icon: UtensilsCrossed, badge: null },
+  { href: '/settings', label: 'Settings', icon: SlidersHorizontal, badge: null },
 ] as const;
 
 /**
