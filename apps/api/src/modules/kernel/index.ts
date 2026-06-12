@@ -40,3 +40,4 @@ export * from './errors/domain-errors';
 
 export { runOutboxRelay } from './outbox/outbox-relay';
 export { IdempotentConsumer } from './outbox/idempotent-consumer';
+export { runWebhookDispatcher } from './webhooks/webhook-dispatcher';

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "desk-checkin",
+    "route": "/arrivals",
+    "timeBudgetSeconds": 60,
+    "interactionBudget": 5,
+    "keyboardOnly": true,
+    "sourceFiles": [
+      "apps/web/app/(desk)/arrivals/page.tsx",
+      "apps/web/components/desk/checkin-drawer.tsx"
+    ],
+    "requiredSelectors": [
+      "golden-checkin-row",
+      "golden-checkin-drawer",
+      "golden-checkin-room-choice",
+      "golden-checkin-primary",
+      "golden-checkin-success"
+    ]
+  },
+  {
+    "id": "desk-walkin",
+    "route": "/arrivals",
+    "timeBudgetSeconds": 120,
+    "interactionBudget": 12,
+    "keyboardOnly": true,
+    "sourceFiles": [
+      "apps/web/components/desk/top-bar.tsx",
+      "apps/web/components/desk/reservation-create-drawer.tsx"
+    ],
+    "requiredSelectors": [
+      "golden-walkin-drawer",
+      "golden-walkin-room-choice",
+      "golden-walkin-first-name",
+      "golden-walkin-last-name",
+      "golden-walkin-continue",
+      "golden-walkin-create"
+    ]
+  },
+  {
+    "id": "desk-checkout",
+    "route": "/departures",
+    "timeBudgetSeconds": 60,
+    "interactionBudget": 3,
+    "keyboardOnly": true,
+    "sourceFiles": [
+      "apps/web/app/(desk)/departures/page.tsx",
+      "apps/web/components/desk/checkout-drawer.tsx"
+    ],
+    "requiredSelectors": [
+      "golden-checkout-row",
+      "golden-checkout-drawer",
+      "golden-checkout-primary",
+      "golden-checkout-success"
+    ]
+  }
+]

@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 import postgres from 'postgres';
 import { streamKey, type EventEnvelope } from '@vela/events';
 import { env } from '../../../config/env';
+import { enqueueWebhookDeliveries } from '../webhooks/webhook-dispatcher';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -77,6 +78,7 @@ export async function runOutboxRelay(): Promise<void> {
             'data',
             JSON.stringify(envelope),
           );
+          await enqueueWebhookDeliveries(tx, r.id);
           await tx`UPDATE outbox_events SET published_at = now() WHERE id = ${r.id}`;
         }
         return rows.length;

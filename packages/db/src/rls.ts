@@ -24,6 +24,8 @@ export const TENANT_TABLES: TenantTable[] = [
   { name: 'roles', property: false, tenantNullable: true },
   { name: 'role_assignments', property: true, propertyNullable: true },
   { name: 'outbox_events', property: true, propertyNullable: true },
+  { name: 'webhook_endpoints', property: true, propertyNullable: true },
+  { name: 'webhook_deliveries', property: true, propertyNullable: true },
   { name: 'audit_log', property: true, propertyNullable: true },
   { name: 'business_dates', property: true },
   { name: 'idempotency_keys', property: false },
@@ -43,6 +45,11 @@ export const TENANT_TABLES: TenantTable[] = [
   { name: 'reservation_room_stays', property: true },
   { name: 'reservation_guests', property: false },
   { name: 'reservation_status_log', property: true },
+  { name: 'registration_cards', property: true },
+  { name: 'key_cards', property: true },
+  { name: 'id_documents', property: true },
+  { name: 'group_blocks', property: true },
+  { name: 'group_block_inventory', property: true },
 
   { name: 'charge_codes', property: true, propertyNullable: true },
   { name: 'tax_rules', property: true, propertyNullable: true },
@@ -50,6 +57,7 @@ export const TENANT_TABLES: TenantTable[] = [
   { name: 'folio_postings', property: true },
   { name: 'posting_taxes', property: true },
   { name: 'payments', property: true },
+  { name: 'payment_intents', property: true },
   { name: 'deposits', property: true },
   { name: 'cashier_sessions', property: true },
 

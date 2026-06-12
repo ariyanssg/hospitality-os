@@ -7,22 +7,25 @@ import { HousekeepingModule } from '../housekeeping';
 import {
   AvailabilityController,
   FrontDeskController,
+  GroupBlocksController,
   NightAuditController,
   ReservationsController,
   WalkInController,
 } from './reservations.controller';
 import { ReservationsService } from './reservations.service';
+import { GroupBlocksService } from './group-blocks.service';
 
 @Module({
   imports: [AvailabilityModule, RatesModule, FolioModule, GlModule, HousekeepingModule],
   controllers: [
     ReservationsController,
     WalkInController,
+    GroupBlocksController,
     AvailabilityController,
     FrontDeskController,
     NightAuditController,
   ],
-  providers: [ReservationsService],
+  providers: [ReservationsService, GroupBlocksService],
   exports: [ReservationsService],
 })
 export class ReservationsModule {}

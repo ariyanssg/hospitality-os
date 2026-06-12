@@ -1,18 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import {
   cashierSessions,
   chargeCodes,
   deposits,
   folioPostings,
   folios,
+  paymentIntents,
   payments,
   reservations,
   taxRules,
   uuidv7,
   type DbTransaction,
 } from '@vela/db';
-import type { Deposit, Folio } from '@vela/contracts';
+import type {
+  AuthorizePaymentInput,
+  CapturePaymentIntentInput,
+  Deposit,
+  Folio,
+  PaymentIntent,
+} from '@vela/contracts';
 import {
   BusinessDateService,
   getRequestContext,
@@ -32,6 +39,7 @@ export interface CreateFolioInput {
   reservationId: string | null;
   guestId: string | null;
   currency: string;
+  type?: 'guest' | 'master' | 'company' | 'paymaster';
 }
 
 export interface PostChargeInternal {
@@ -59,6 +67,13 @@ export interface RecordPaymentInternal {
   pspToken?: string;
 }
 
+export interface OpenFolioSummary {
+  id: string;
+  reservationId: string;
+  balance: string;
+  currency: string;
+}
+
 /**
  * Folio & Payments. Postings are immutable (the DB trigger enforces it); corrections are reversals.
  * Every charge/payment books balanced GL lines in the SAME transaction via GlService.
@@ -80,7 +95,7 @@ export class FolioService {
       folioNumber: folioNumberFrom(id),
       reservationId: input.reservationId,
       guestId: input.guestId,
-      type: 'guest',
+      type: input.type ?? 'guest',
       status: 'open',
       currency: input.currency,
       balance: '0',
@@ -305,6 +320,155 @@ export class FolioService {
     });
 
     return paymentId;
+  }
+
+  async authorizePayment(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    folioId: string,
+    input: AuthorizePaymentInput,
+  ): Promise<string> {
+    const ctx = getRequestContext();
+    const folio = await this.loadOpenFolio(tx, folioId);
+    const amount = Money.fromJSON(input.amount);
+    if (!amount.isPositive()) {
+      throw new StateConflictError('Authorization amount must be positive');
+    }
+    if (amount.currency !== folio.currency.trim()) {
+      throw new StateConflictError('Authorization currency must match folio currency');
+    }
+
+    const id = uuidv7();
+    await tx.insert(paymentIntents).values({
+      id,
+      tenantId: ctx.tenantId,
+      propertyId: folio.propertyId,
+      folioId: folio.id,
+      method: 'card',
+      status: 'authorized',
+      amount: amount.amount,
+      capturedAmount: '0',
+      currency: amount.currency,
+      pspProvider: input.pspProvider,
+      pspToken: input.pspToken,
+      providerIntentId: input.providerIntentId ?? null,
+      providerAuthorizationId: input.providerAuthorizationId ?? null,
+      authorizedAt: new Date(),
+      metadata: input.metadata,
+    });
+
+    helpers.emit({
+      type: 'payment.authorized',
+      aggregateType: 'payment_intent',
+      aggregateId: id,
+      propertyId: folio.propertyId,
+      data: {
+        paymentIntentId: id,
+        folioId: folio.id,
+        amount: amount.toJSON(),
+        pspProvider: input.pspProvider,
+      },
+    });
+    helpers.audit({
+      action: 'payment.authorize',
+      entityType: 'payment_intent',
+      entityId: id,
+      after: {
+        folioId: folio.id,
+        amount: amount.amount,
+        pspProvider: input.pspProvider,
+        providerIntentId: input.providerIntentId ?? null,
+      },
+      propertyId: folio.propertyId,
+    });
+
+    return id;
+  }
+
+  async capturePaymentIntent(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    paymentIntentId: string,
+    input: CapturePaymentIntentInput,
+  ): Promise<string> {
+    const ctx = getRequestContext();
+    const [intent] = await tx
+      .select()
+      .from(paymentIntents)
+      .where(and(eq(paymentIntents.id, paymentIntentId), eq(paymentIntents.tenantId, ctx.tenantId)))
+      .limit(1);
+    if (!intent) throw new NotFoundError('Payment intent');
+    if (intent.status !== 'authorized') {
+      throw new StateConflictError(`Cannot capture a payment intent in status ${intent.status}`);
+    }
+
+    const authorized = Money.of(intent.amount, intent.currency.trim());
+    const amount = input.amount ? Money.fromJSON(input.amount) : authorized;
+    if (!amount.isPositive()) {
+      throw new StateConflictError('Capture amount must be positive');
+    }
+    if (amount.currency !== authorized.currency) {
+      throw new StateConflictError('Capture currency must match authorization currency');
+    }
+    if (amount.compare(authorized) > 0) {
+      throw new StateConflictError('Capture amount exceeds authorized amount');
+    }
+
+    const paymentId = await this.recordPayment(tx, helpers, {
+      folioId: intent.folioId,
+      method: 'card',
+      amount,
+      reference: input.reference ?? intent.providerIntentId ?? undefined,
+      pspToken: intent.pspToken,
+    });
+
+    await tx
+      .update(paymentIntents)
+      .set({
+        status: 'captured',
+        capturedAmount: amount.amount,
+        capturedPaymentId: paymentId,
+        capturedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentIntents.id, paymentIntentId));
+
+    helpers.audit({
+      action: 'payment.capture',
+      entityType: 'payment_intent',
+      entityId: paymentIntentId,
+      after: { paymentId, amount: amount.amount },
+      propertyId: intent.propertyId,
+    });
+
+    return paymentId;
+  }
+
+  async paymentIntentDto(tx: DbTransaction, id: string): Promise<PaymentIntent> {
+    const ctx = getRequestContext();
+    const [intent] = await tx
+      .select()
+      .from(paymentIntents)
+      .where(and(eq(paymentIntents.id, id), eq(paymentIntents.tenantId, ctx.tenantId)))
+      .limit(1);
+    if (!intent) throw new NotFoundError('Payment intent');
+    const currency = intent.currency.trim();
+    return {
+      id: intent.id,
+      folioId: intent.folioId,
+      method: intent.method,
+      status: intent.status as PaymentIntent['status'],
+      amount: Money.of(intent.amount, currency).toJSON(),
+      capturedAmount: Money.of(intent.capturedAmount, currency).toJSON(),
+      pspProvider: intent.pspProvider,
+      providerIntentId: intent.providerIntentId,
+      providerAuthorizationId: intent.providerAuthorizationId,
+      capturedPaymentId: intent.capturedPaymentId,
+      authorizedAt: intent.authorizedAt?.toISOString() ?? null,
+      capturedAt: intent.capturedAt?.toISOString() ?? null,
+      voidedAt: intent.voidedAt?.toISOString() ?? null,
+      failureReason: intent.failureReason,
+    };
   }
 
   /** Post a night's room charge with its room tax (used by night audit). */
@@ -888,6 +1052,41 @@ export class FolioService {
       )
       .limit(1);
     return folio?.id ?? null;
+  }
+
+  /** Cross-module read API for front-desk boards that need running folio balances. */
+  async openFolioSummariesForReservations(
+    tx: DbTransaction,
+    reservationIds: string[],
+  ): Promise<Map<string, OpenFolioSummary>> {
+    if (reservationIds.length === 0) return new Map();
+    const ctx = getRequestContext();
+    const rows = await tx
+      .select({
+        id: folios.id,
+        reservationId: folios.reservationId,
+        balance: folios.balance,
+        currency: folios.currency,
+      })
+      .from(folios)
+      .where(
+        and(
+          eq(folios.tenantId, ctx.tenantId),
+          eq(folios.status, 'open'),
+          inArray(folios.reservationId, reservationIds),
+        ),
+      );
+    const summaries = new Map<string, OpenFolioSummary>();
+    for (const row of rows) {
+      if (!row.reservationId) continue;
+      summaries.set(row.reservationId, {
+        id: row.id,
+        reservationId: row.reservationId,
+        balance: row.balance,
+        currency: row.currency.trim(),
+      });
+    }
+    return summaries;
   }
 
   private async adjustBalance(

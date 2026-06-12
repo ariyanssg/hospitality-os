@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
   AssignTicketSchema,
   CompleteTicketSchema,
@@ -10,6 +10,7 @@ import {
   type HkBoardRoom,
   type HkTask,
   type MaintenanceTicket,
+  type RoomBlock,
 } from '@vela/contracts';
 import {
   Ctx,
@@ -24,7 +25,9 @@ import { HousekeepingService } from './housekeeping.service';
 function requireProperty(ctx: RequestContext): string {
   const propertyId = ctx.propertyIds[0];
   if (!propertyId) {
-    throw new ValidationError('A property is required', [{ field: 'X-Property-Id', code: 'REQUIRED' }]);
+    throw new ValidationError('A property is required', [
+      { field: 'X-Property-Id', code: 'REQUIRED' },
+    ]);
   }
   return propertyId;
 }
@@ -47,7 +50,8 @@ export class HousekeepingController {
   @RequirePermission('housekeeping.task.view')
   async tasks(
     @Ctx() ctx: RequestContext,
-    @Query(new ZodValidationPipe(HkTaskListQuerySchema)) query: typeof HkTaskListQuerySchema._output,
+    @Query(new ZodValidationPipe(HkTaskListQuerySchema))
+    query: typeof HkTaskListQuerySchema._output,
   ): Promise<HkTask[]> {
     const propertyId = requireProperty(ctx);
     return this.uow.read((tx) => this.housekeeping.listTasks(tx, propertyId, query));
@@ -58,8 +62,9 @@ export class HousekeepingController {
   @RequirePermission('housekeeping.task.manage')
   async createTask(
     @Body(new ZodValidationPipe(CreateHkTaskSchema)) body: typeof CreateHkTaskSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<HkTask> {
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, body, async (tx, helpers) => {
       const id = await this.housekeeping.createTask(tx, helpers, body);
       return this.housekeeping.taskDto(tx, id);
     });
@@ -67,8 +72,11 @@ export class HousekeepingController {
 
   @Post('tasks/:id/start')
   @RequirePermission('housekeeping.task.complete')
-  async start(@Param('id') id: string): Promise<HkTask> {
-    return this.uow.run(async (tx, helpers) => {
+  async start(
+    @Param('id') id: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<HkTask> {
+    return this.uow.runIdempotent(idempotencyKey, { id, action: 'start' }, async (tx, helpers) => {
       await this.housekeeping.taskAction(tx, helpers, id, 'start');
       return this.housekeeping.taskDto(tx, id);
     });
@@ -76,17 +84,27 @@ export class HousekeepingController {
 
   @Post('tasks/:id/complete')
   @RequirePermission('housekeeping.task.complete')
-  async complete(@Param('id') id: string): Promise<HkTask> {
-    return this.uow.run(async (tx, helpers) => {
-      await this.housekeeping.taskAction(tx, helpers, id, 'complete');
-      return this.housekeeping.taskDto(tx, id);
-    });
+  async complete(
+    @Param('id') id: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<HkTask> {
+    return this.uow.runIdempotent(
+      idempotencyKey,
+      { id, action: 'complete' },
+      async (tx, helpers) => {
+        await this.housekeeping.taskAction(tx, helpers, id, 'complete');
+        return this.housekeeping.taskDto(tx, id);
+      },
+    );
   }
 
   @Post('tasks/:id/skip')
   @RequirePermission('housekeeping.task.complete')
-  async skip(@Param('id') id: string): Promise<HkTask> {
-    return this.uow.run(async (tx, helpers) => {
+  async skip(
+    @Param('id') id: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<HkTask> {
+    return this.uow.runIdempotent(idempotencyKey, { id, action: 'skip' }, async (tx, helpers) => {
       await this.housekeeping.taskAction(tx, helpers, id, 'skip');
       return this.housekeeping.taskDto(tx, id);
     });
@@ -100,13 +118,22 @@ export class RoomStatusController {
     private readonly housekeeping: HousekeepingService,
   ) {}
 
+  @Get('out-of-service')
+  @RequirePermission('availability.view')
+  async outOfService(@Ctx() ctx: RequestContext): Promise<RoomBlock[]> {
+    const propertyId = requireProperty(ctx);
+    return this.uow.read((tx) => this.housekeeping.listRoomBlocks(tx, propertyId));
+  }
+
   @Post(':id/status')
   @RequirePermission('room.status.update')
   async updateStatus(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(RoomStatusUpdateSchema)) body: typeof RoomStatusUpdateSchema._output,
+    @Body(new ZodValidationPipe(RoomStatusUpdateSchema))
+    body: typeof RoomStatusUpdateSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<HkBoardRoom> {
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
       await this.housekeeping.updateRoomStatus(tx, helpers, id, body.hkStatus, body.reason);
       return this.housekeeping.boardRoom(tx, id);
     });
@@ -118,8 +145,9 @@ export class RoomStatusController {
   async outOfOrder(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(OutOfOrderSchema)) body: typeof OutOfOrderSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<{ id: string }> {
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
       const periodId = await this.housekeeping.setOutOfOrder(tx, helpers, id, body);
       return { id: periodId };
     });
@@ -150,9 +178,10 @@ export class MaintenanceController {
     @Ctx() ctx: RequestContext,
     @Body(new ZodValidationPipe(CreateMaintenanceTicketSchema))
     body: typeof CreateMaintenanceTicketSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<MaintenanceTicket> {
     const propertyId = requireProperty(ctx);
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, { propertyId, ...body }, async (tx, helpers) => {
       const id = await this.housekeeping.createTicket(tx, helpers, propertyId, body);
       return this.housekeeping.ticketDto(tx, id);
     });
@@ -163,11 +192,16 @@ export class MaintenanceController {
   async assign(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(AssignTicketSchema)) body: typeof AssignTicketSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<MaintenanceTicket> {
-    return this.uow.run(async (tx, helpers) => {
-      await this.housekeeping.ticketAction(tx, helpers, id, 'assign', body);
-      return this.housekeeping.ticketDto(tx, id);
-    });
+    return this.uow.runIdempotent(
+      idempotencyKey,
+      { id, action: 'assign', ...body },
+      async (tx, helpers) => {
+        await this.housekeeping.ticketAction(tx, helpers, id, 'assign', body);
+        return this.housekeeping.ticketDto(tx, id);
+      },
+    );
   }
 
   @Post(':id/complete')
@@ -175,17 +209,25 @@ export class MaintenanceController {
   async complete(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(CompleteTicketSchema)) body: typeof CompleteTicketSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<MaintenanceTicket> {
-    return this.uow.run(async (tx, helpers) => {
-      await this.housekeeping.ticketAction(tx, helpers, id, 'complete', body);
-      return this.housekeeping.ticketDto(tx, id);
-    });
+    return this.uow.runIdempotent(
+      idempotencyKey,
+      { id, action: 'complete', ...body },
+      async (tx, helpers) => {
+        await this.housekeeping.ticketAction(tx, helpers, id, 'complete', body);
+        return this.housekeeping.ticketDto(tx, id);
+      },
+    );
   }
 
   @Post(':id/close')
   @RequirePermission('maintenance.ticket.close')
-  async close(@Param('id') id: string): Promise<MaintenanceTicket> {
-    return this.uow.run(async (tx, helpers) => {
+  async close(
+    @Param('id') id: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<MaintenanceTicket> {
+    return this.uow.runIdempotent(idempotencyKey, { id, action: 'close' }, async (tx, helpers) => {
       await this.housekeeping.ticketAction(tx, helpers, id, 'close', {});
       return this.housekeeping.ticketDto(tx, id);
     });

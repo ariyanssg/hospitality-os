@@ -11,4 +11,5 @@ export * from './guests';
 export * from './pos';
 export * from './booking';
 export * from './messaging';
+export * from './webhooks';
 export { z } from './zod';

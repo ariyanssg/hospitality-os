@@ -2,9 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { and, asc, eq, gt, gte, ilike, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import {
   businessDates,
-  folios,
   guests,
+  housekeepingTasks,
+  idDocuments,
+  keyCards,
+  outOfOrderPeriods,
   properties,
+  registrationCards,
   reservationGuests,
   reservationNights,
   reservationRoomStays,
@@ -17,16 +21,21 @@ import {
 } from '@vela/db';
 import type {
   ArrivalRow,
+  AvailableRoom,
   CreateReservationInput,
   DepartureRow,
   InHouseRow,
+  IssueKeyCardInput,
   ModifyReservationInput,
   NightAuditResult,
+  QueueRoomInput,
   Reservation,
   ReservationListQuery,
   ReservationListRow,
   RoomRackRow,
   RoomTypeAvailability,
+  SignRegistrationCardInput,
+  VerifyIdDocumentInput,
   WalkInInput,
 } from '@vela/contracts';
 import {
@@ -40,7 +49,7 @@ import {
 } from '../kernel';
 import { AvailabilityService } from '../availability';
 import { RatesService } from '../rates';
-import { FolioService } from '../folio';
+import { FolioService, type OpenFolioSummary } from '../folio';
 import { GlService } from '../gl';
 import { HousekeepingService } from '../housekeeping';
 import { addDays, confirmationNumberFrom, nightsBetween } from './domain/dates';
@@ -65,6 +74,12 @@ export class ReservationsService {
       ]);
     }
     return propertyId;
+  }
+
+  private boardBalance(summary: OpenFolioSummary | undefined, currency: string) {
+    return summary
+      ? Money.of(summary.balance, summary.currency).toJSON()
+      : Money.zero(currency).toJSON();
   }
 
   /** Booking sequence (doc modules/01): price resolve → counter increment → folio create → event. */
@@ -114,6 +129,7 @@ export class ReservationsService {
       departureDate: input.departureDate,
       roomTypeId: input.roomTypeId,
       ratePlanId: input.ratePlanId,
+      groupBlockId: input.groupBlockId ?? null,
       adults: input.adults,
       children: input.children,
       totalAmount: stay.total.amount,
@@ -192,18 +208,35 @@ export class ReservationsService {
     tx: DbTransaction,
     helpers: UowHelpers,
     id: string,
-    roomId?: string,
+    input: {
+      roomId?: string;
+      requireRegistrationCard?: boolean;
+      registrationCard?: SignRegistrationCardInput;
+      keyCard?: IssueKeyCardInput;
+      idDocument?: VerifyIdDocumentInput;
+    },
   ): Promise<void> {
     const res = await this.loadReservation(tx, id);
     if (res.status !== 'confirmed') {
       throw new StateConflictError(`Cannot check in a reservation in status ${res.status}`);
+    }
+    if (input.registrationCard) {
+      await this.signRegistrationCard(tx, helpers, id, input.registrationCard);
+    } else if (input.requireRegistrationCard) {
+      const card = await this.latestRegistrationCard(tx, id);
+      if (!card) {
+        throw new StateConflictError('Registration card must be signed before check-in');
+      }
+    }
+    if (input.idDocument) {
+      await this.verifyIdDocument(tx, helpers, id, input.idDocument);
     }
     await tx
       .update(reservations)
       .set({ status: 'checked_in', checkedInAt: new Date(), updatedAt: new Date() })
       .where(eq(reservations.id, id));
 
-    if (roomId) {
+    if (input.roomId) {
       const ctx = getRequestContext();
       const [room] = await tx
         .select({ id: rooms.id, occupancy: rooms.occupancy, roomTypeId: rooms.roomTypeId })
@@ -212,7 +245,7 @@ export class ReservationsService {
           and(
             eq(rooms.tenantId, ctx.tenantId),
             eq(rooms.propertyId, res.propertyId),
-            eq(rooms.id, roomId),
+            eq(rooms.id, input.roomId),
           ),
         )
         .limit(1);
@@ -222,23 +255,28 @@ export class ReservationsService {
       }
       await tx
         .update(reservationRoomStays)
-        .set({ roomId })
-        .where(and(eq(reservationRoomStays.reservationId, id), isNull(reservationRoomStays.closedAt)));
+        .set({ roomId: input.roomId })
+        .where(
+          and(eq(reservationRoomStays.reservationId, id), isNull(reservationRoomStays.closedAt)),
+        );
       await tx
         .update(rooms)
         .set({ occupancy: 'occupied', statusUpdatedAt: new Date() })
-        .where(eq(rooms.id, roomId));
+        .where(eq(rooms.id, input.roomId));
       helpers.emit({
         type: 'room.assigned',
         aggregateType: 'room',
-        aggregateId: roomId,
+        aggregateId: input.roomId,
         propertyId: res.propertyId,
-        data: { roomId, reservationId: id },
+        data: { roomId: input.roomId, reservationId: id },
       });
     }
 
     // Pre-arrival deposits move from the deposit ledger onto the (now active) folio.
     await this.folio.applyHeldDeposits(tx, helpers, id);
+    if (input.keyCard) {
+      await this.issueKeyCard(tx, helpers, id, input.keyCard, input.roomId);
+    }
 
     await this.logStatus(tx, res.propertyId, id, res.status, 'checked_in');
     helpers.emit({
@@ -246,7 +284,7 @@ export class ReservationsService {
       aggregateType: 'reservation',
       aggregateId: id,
       propertyId: res.propertyId,
-      data: { reservationId: id, roomId: roomId ?? null },
+      data: { reservationId: id, roomId: input.roomId ?? null },
     });
     helpers.audit({
       action: 'reservation.checkin',
@@ -254,6 +292,262 @@ export class ReservationsService {
       entityId: id,
       propertyId: res.propertyId,
     });
+  }
+
+  async queueRoom(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    reservationId: string,
+    input: QueueRoomInput,
+  ): Promise<string> {
+    const ctx = getRequestContext();
+    const res = await this.loadReservation(tx, reservationId);
+    if (res.status !== 'confirmed') {
+      throw new StateConflictError(`Cannot queue a reservation in status ${res.status}`);
+    }
+
+    const [stay] = await tx
+      .select({ id: reservationRoomStays.id, roomId: reservationRoomStays.roomId })
+      .from(reservationRoomStays)
+      .where(
+        and(
+          eq(reservationRoomStays.tenantId, ctx.tenantId),
+          eq(reservationRoomStays.reservationId, reservationId),
+          isNull(reservationRoomStays.closedAt),
+        ),
+      )
+      .limit(1);
+    if (!stay) throw new StateConflictError('Reservation has no open room stay');
+
+    const roomId = input.roomId ?? stay.roomId;
+    if (!roomId) {
+      throw new ValidationError('A room is required to queue room readiness', [
+        { field: 'roomId', code: 'REQUIRED' },
+      ]);
+    }
+
+    const [room] = await tx
+      .select({ id: rooms.id, occupancy: rooms.occupancy, hkStatus: rooms.hkStatus })
+      .from(rooms)
+      .where(
+        and(
+          eq(rooms.tenantId, ctx.tenantId),
+          eq(rooms.propertyId, res.propertyId),
+          eq(rooms.id, roomId),
+        ),
+      )
+      .limit(1);
+    if (!room) throw new NotFoundError('Room');
+    if (room.occupancy !== 'vacant') {
+      throw new StateConflictError('Cannot queue an occupied room');
+    }
+
+    if (stay.roomId !== roomId) {
+      await tx
+        .update(reservationRoomStays)
+        .set({ roomId, updatedAt: new Date() })
+        .where(eq(reservationRoomStays.id, stay.id));
+      helpers.emit({
+        type: 'room.assigned',
+        aggregateType: 'room',
+        aggregateId: roomId,
+        propertyId: res.propertyId,
+        data: { roomId, reservationId },
+      });
+    }
+
+    const [existing] = await tx
+      .select({ id: housekeepingTasks.id })
+      .from(housekeepingTasks)
+      .where(
+        and(
+          eq(housekeepingTasks.tenantId, ctx.tenantId),
+          eq(housekeepingTasks.propertyId, res.propertyId),
+          eq(housekeepingTasks.roomId, roomId),
+          eq(housekeepingTasks.reservationId, reservationId),
+          inArray(housekeepingTasks.status, ['pending', 'in_progress']),
+        ),
+      )
+      .limit(1);
+
+    const taskType = room.hkStatus === 'clean' ? 'inspection' : 'departure_clean';
+    const notes = input.notes ?? 'Arrival waiting for room readiness';
+    let taskId = existing?.id;
+    if (taskId) {
+      await tx
+        .update(housekeepingTasks)
+        .set({ priority: 'queue', notes, updatedAt: new Date() })
+        .where(eq(housekeepingTasks.id, taskId));
+    } else if (room.hkStatus !== 'inspected') {
+      taskId = await this.housekeeping.createTask(tx, helpers, {
+        roomId,
+        reservationId,
+        taskType,
+        priority: 'queue',
+        notes,
+      });
+    }
+
+    helpers.emit({
+      type: 'reservation.room_queued',
+      aggregateType: 'reservation',
+      aggregateId: reservationId,
+      propertyId: res.propertyId,
+      data: { reservationId, roomId, taskId: taskId ?? null },
+    });
+    helpers.audit({
+      action: 'reservation.room_queue',
+      entityType: 'reservation',
+      entityId: reservationId,
+      after: { roomId, taskId: taskId ?? null },
+      propertyId: res.propertyId,
+    });
+
+    return taskId ?? '';
+  }
+
+  async issueKeyCard(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    reservationId: string,
+    input: IssueKeyCardInput,
+    assignedRoomId?: string,
+  ): Promise<string> {
+    const ctx = getRequestContext();
+    const res = await this.loadReservation(tx, reservationId);
+    const roomId = input.roomId ?? assignedRoomId ?? (await this.activeRoomId(tx, reservationId));
+    if (!roomId) {
+      throw new StateConflictError('A room must be assigned before issuing a key');
+    }
+    const [room] = await tx
+      .select({ id: rooms.id, propertyId: rooms.propertyId })
+      .from(rooms)
+      .where(
+        and(
+          eq(rooms.tenantId, ctx.tenantId),
+          eq(rooms.propertyId, res.propertyId),
+          eq(rooms.id, roomId),
+        ),
+      )
+      .limit(1);
+    if (!room) throw new NotFoundError('Room');
+
+    const id = uuidv7();
+    const encodedAt = input.markEncoded ? new Date() : null;
+    await tx.insert(keyCards).values({
+      id,
+      tenantId: ctx.tenantId,
+      propertyId: res.propertyId,
+      reservationId,
+      roomId,
+      status: input.markEncoded ? 'encoded' : 'requested',
+      provider: input.provider,
+      keyCount: input.keyCount,
+      encodedAt,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+      encoderRef: input.encoderRef ?? null,
+      metadata: {},
+    });
+
+    helpers.audit({
+      action: 'reservation.key_card.issue',
+      entityType: 'key_card',
+      entityId: id,
+      after: {
+        reservationId,
+        roomId,
+        provider: input.provider,
+        keyCount: input.keyCount,
+        status: input.markEncoded ? 'encoded' : 'requested',
+      },
+      propertyId: res.propertyId,
+    });
+    return id;
+  }
+
+  async verifyIdDocument(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    reservationId: string,
+    input: VerifyIdDocumentInput,
+  ): Promise<string> {
+    const ctx = getRequestContext();
+    const res = await this.loadReservation(tx, reservationId);
+    const id = uuidv7();
+    await tx.insert(idDocuments).values({
+      id,
+      tenantId: ctx.tenantId,
+      propertyId: res.propertyId,
+      reservationId,
+      guestId: res.guestId,
+      documentType: input.documentType,
+      issuingCountry: input.issuingCountry ?? null,
+      documentHash: input.documentHash,
+      artifactRef: input.artifactRef ?? null,
+      expiryDate: input.expiryDate ?? null,
+      verificationStatus: input.verificationStatus,
+      verifiedAt: new Date(),
+      metadata: input.metadata,
+    });
+
+    helpers.audit({
+      action: 'reservation.id_document.verify',
+      entityType: 'id_document',
+      entityId: id,
+      after: {
+        reservationId,
+        guestId: res.guestId,
+        documentType: input.documentType,
+        issuingCountry: input.issuingCountry ?? null,
+        verificationStatus: input.verificationStatus,
+      },
+      propertyId: res.propertyId,
+    });
+    return id;
+  }
+
+  async signRegistrationCard(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    reservationId: string,
+    input: SignRegistrationCardInput,
+  ): Promise<string> {
+    const ctx = getRequestContext();
+    const res = await this.loadReservation(tx, reservationId);
+    const existing = await this.latestRegistrationCard(tx, reservationId);
+    if (existing) {
+      throw new StateConflictError('Registration card is already signed');
+    }
+
+    const id = uuidv7();
+    await tx.insert(registrationCards).values({
+      id,
+      tenantId: ctx.tenantId,
+      propertyId: res.propertyId,
+      reservationId,
+      guestId: res.guestId,
+      status: 'signed',
+      termsVersion: input.termsVersion,
+      signatureHash: input.signatureHash,
+      signerName: input.signerName,
+      consent: input.consent,
+      metadata: input.metadata,
+    });
+
+    helpers.audit({
+      action: 'reservation.registration_card.sign',
+      entityType: 'registration_card',
+      entityId: id,
+      after: {
+        reservationId,
+        signerName: input.signerName,
+        termsVersion: input.termsVersion,
+        consent: input.consent,
+      },
+      propertyId: res.propertyId,
+    });
+
+    return id;
   }
 
   async checkOut(tx: DbTransaction, helpers: UowHelpers, id: string): Promise<void> {
@@ -506,7 +800,9 @@ export class ReservationsService {
       await tx
         .update(reservationRoomStays)
         .set({ fromDate: arrivalDate, toDate: departureDate })
-        .where(and(eq(reservationRoomStays.reservationId, id), isNull(reservationRoomStays.closedAt)));
+        .where(
+          and(eq(reservationRoomStays.reservationId, id), isNull(reservationRoomStays.closedAt)),
+        );
       await tx
         .update(reservations)
         .set({
@@ -664,7 +960,7 @@ export class ReservationsService {
       children: input.children,
       source: { channel: 'walk_in' },
     });
-    await this.checkIn(tx, helpers, id, input.roomId);
+    await this.checkIn(tx, helpers, id, { roomId: input.roomId });
     return id;
   }
 
@@ -736,7 +1032,6 @@ export class ReservationsService {
         firstName: guests.firstName,
         lastName: guests.lastName,
         roomNumber: rooms.number,
-        folioBalance: folios.balance,
       })
       .from(reservations)
       .innerJoin(guests, eq(guests.id, reservations.guestId))
@@ -748,10 +1043,6 @@ export class ReservationsService {
         ),
       )
       .leftJoin(rooms, eq(rooms.id, reservationRoomStays.roomId))
-      .leftJoin(
-        folios,
-        and(eq(folios.reservationId, reservations.id), eq(folios.status, 'open')),
-      )
       .where(
         and(
           eq(reservations.tenantId, ctx.tenantId),
@@ -761,13 +1052,17 @@ export class ReservationsService {
         ),
       )
       .orderBy(asc(rooms.number));
+    const foliosByReservation = await this.folio.openFolioSummariesForReservations(
+      tx,
+      rows.map((r) => r.id),
+    );
     return rows.map((r) => ({
       id: r.id,
       confirmationNumber: r.confirmationNumber,
       guestName: `${r.firstName} ${r.lastName}`,
       roomNumber: r.roomNumber ?? null,
       departureDate: r.departureDate,
-      balance: Money.of(r.folioBalance ?? '0', r.currency).toJSON(),
+      balance: this.boardBalance(foliosByReservation.get(r.id), r.currency),
     }));
   }
 
@@ -783,7 +1078,6 @@ export class ReservationsService {
         firstName: guests.firstName,
         lastName: guests.lastName,
         roomNumber: rooms.number,
-        folioBalance: folios.balance,
       })
       .from(reservations)
       .innerJoin(guests, eq(guests.id, reservations.guestId))
@@ -795,10 +1089,6 @@ export class ReservationsService {
         ),
       )
       .leftJoin(rooms, eq(rooms.id, reservationRoomStays.roomId))
-      .leftJoin(
-        folios,
-        and(eq(folios.reservationId, reservations.id), eq(folios.status, 'open')),
-      )
       .where(
         and(
           eq(reservations.tenantId, ctx.tenantId),
@@ -807,6 +1097,10 @@ export class ReservationsService {
         ),
       )
       .orderBy(asc(rooms.number));
+    const foliosByReservation = await this.folio.openFolioSummariesForReservations(
+      tx,
+      rows.map((r) => r.id),
+    );
     return rows.map((r) => ({
       id: r.id,
       confirmationNumber: r.confirmationNumber,
@@ -814,7 +1108,7 @@ export class ReservationsService {
       roomNumber: r.roomNumber ?? null,
       arrivalDate: r.arrivalDate,
       departureDate: r.departureDate,
-      balance: Money.of(r.folioBalance ?? '0', r.currency).toJSON(),
+      balance: this.boardBalance(foliosByReservation.get(r.id), r.currency),
     }));
   }
 
@@ -831,6 +1125,7 @@ export class ReservationsService {
         roomId: rooms.id,
         number: rooms.number,
         floor: rooms.floor,
+        roomTypeId: rooms.roomTypeId,
         hkStatus: rooms.hkStatus,
         occupancy: rooms.occupancy,
         roomTypeCode: roomTypes.code,
@@ -881,11 +1176,112 @@ export class ReservationsService {
       roomId: r.roomId,
       number: r.number,
       floor: r.floor,
+      roomTypeId: r.roomTypeId,
       roomTypeCode: r.roomTypeCode,
       hkStatus: r.hkStatus,
       occupancy: r.occupancy,
       stays: (byRoom.get(r.roomId) ?? []).sort((a, b) => a.fromDate.localeCompare(b.fromDate)),
     }));
+  }
+
+  async availableRooms(
+    tx: DbTransaction,
+    propertyId: string,
+    from: string,
+    to: string,
+    roomTypeId?: string,
+  ): Promise<AvailableRoom[]> {
+    if (to <= from) {
+      throw new ValidationError('To date must be after from date', [
+        { field: 'to', code: 'INVALID_RANGE' },
+      ]);
+    }
+
+    const ctx = getRequestContext();
+    const counts = await this.availability.counts(tx, propertyId, from, to, roomTypeId);
+    const availableByType = new Map(
+      counts.map((rt) => [
+        rt.roomTypeId,
+        rt.days.length > 0 ? Math.min(...rt.days.map((d) => d.available)) : 0,
+      ]),
+    );
+
+    const roomRows = await tx
+      .select({
+        roomId: rooms.id,
+        number: rooms.number,
+        floor: rooms.floor,
+        roomTypeId: rooms.roomTypeId,
+        roomTypeCode: roomTypes.code,
+        roomTypeName: roomTypes.name,
+        hkStatus: rooms.hkStatus,
+        occupancy: rooms.occupancy,
+      })
+      .from(rooms)
+      .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
+      .where(
+        and(
+          eq(rooms.tenantId, ctx.tenantId),
+          eq(rooms.propertyId, propertyId),
+          roomTypeId ? eq(rooms.roomTypeId, roomTypeId) : undefined,
+        ),
+      )
+      .orderBy(asc(roomTypes.sortOrder), asc(rooms.number));
+
+    const stays = await tx
+      .select({ roomId: reservationRoomStays.roomId })
+      .from(reservationRoomStays)
+      .innerJoin(reservations, eq(reservations.id, reservationRoomStays.reservationId))
+      .where(
+        and(
+          eq(reservationRoomStays.tenantId, ctx.tenantId),
+          eq(reservationRoomStays.propertyId, propertyId),
+          inArray(reservations.status, ['confirmed', 'checked_in']),
+          lt(reservationRoomStays.fromDate, to),
+          gt(reservationRoomStays.toDate, from),
+        ),
+      );
+
+    const blocks = await tx
+      .select({ roomId: outOfOrderPeriods.roomId })
+      .from(outOfOrderPeriods)
+      .where(
+        and(
+          eq(outOfOrderPeriods.tenantId, ctx.tenantId),
+          eq(outOfOrderPeriods.propertyId, propertyId),
+          lt(outOfOrderPeriods.fromDate, to),
+          gt(outOfOrderPeriods.toDate, from),
+        ),
+      );
+
+    const unavailable = new Set<string>();
+    for (const s of stays) {
+      if (s.roomId) unavailable.add(s.roomId);
+    }
+    for (const b of blocks) unavailable.add(b.roomId);
+
+    const usedByType = new Map<string, number>();
+    const available: AvailableRoom[] = [];
+    for (const room of roomRows) {
+      if (room.occupancy !== 'vacant') continue;
+      if (unavailable.has(room.roomId)) continue;
+      const remaining = availableByType.get(room.roomTypeId) ?? 0;
+      const used = usedByType.get(room.roomTypeId) ?? 0;
+      if (used >= remaining) continue;
+      usedByType.set(room.roomTypeId, used + 1);
+      available.push({
+        roomId: room.roomId,
+        number: room.number,
+        floor: room.floor,
+        roomTypeId: room.roomTypeId,
+        roomTypeCode: room.roomTypeCode,
+        roomTypeName: room.roomTypeName,
+        hkStatus: room.hkStatus,
+        occupancy: room.occupancy,
+      });
+    }
+
+    return available;
   }
 
   async getDto(tx: DbTransaction, id: string): Promise<Reservation> {
@@ -901,11 +1297,25 @@ export class ReservationsService {
       .from(reservationNights)
       .where(eq(reservationNights.reservationId, id))
       .orderBy(asc(reservationNights.stayDate));
-    const [folio] = await tx
-      .select({ id: folios.id })
-      .from(folios)
-      .where(eq(folios.reservationId, id))
-      .limit(1);
+    const folioId = await this.folio.openFolioIdForReservation(tx, id);
+    const registrationCard = await this.latestRegistrationCard(tx, id);
+    const issuedKeys = await tx
+      .select()
+      .from(keyCards)
+      .where(
+        and(eq(keyCards.tenantId, getRequestContext().tenantId), eq(keyCards.reservationId, id)),
+      )
+      .orderBy(asc(keyCards.createdAt));
+    const verifiedDocuments = await tx
+      .select()
+      .from(idDocuments)
+      .where(
+        and(
+          eq(idDocuments.tenantId, getRequestContext().tenantId),
+          eq(idDocuments.reservationId, id),
+        ),
+      )
+      .orderBy(asc(idDocuments.verifiedAt));
 
     return {
       id: res.id,
@@ -927,8 +1337,80 @@ export class ReservationsService {
         price: Money.of(n.price, n.currency).toJSON(),
         marketSegment: n.marketSegment,
       })),
-      folioId: folio?.id ?? null,
+      folioId,
+      registrationCard: registrationCard
+        ? {
+            id: registrationCard.id,
+            reservationId: registrationCard.reservationId,
+            guestId: registrationCard.guestId,
+            status: registrationCard.status as 'signed' | 'voided',
+            termsVersion: registrationCard.termsVersion,
+            signatureHash: registrationCard.signatureHash,
+            signerName: registrationCard.signerName,
+            signedAt: registrationCard.signedAt.toISOString(),
+            consent: normalizeRegistrationConsent(registrationCard.consent),
+          }
+        : null,
+      keyCards: issuedKeys.map((key) => ({
+        id: key.id,
+        reservationId: key.reservationId,
+        roomId: key.roomId,
+        status: key.status as 'requested' | 'encoded' | 'failed' | 'voided',
+        provider: key.provider,
+        keyCount: key.keyCount,
+        encodedAt: key.encodedAt?.toISOString() ?? null,
+        expiresAt: key.expiresAt?.toISOString() ?? null,
+        encoderRef: key.encoderRef,
+      })),
+      idDocuments: verifiedDocuments.map((doc) => ({
+        id: doc.id,
+        reservationId: doc.reservationId,
+        guestId: doc.guestId,
+        documentType: doc.documentType as
+          | 'passport'
+          | 'national_id'
+          | 'drivers_license'
+          | 'residence_permit'
+          | 'other',
+        issuingCountry: doc.issuingCountry,
+        documentHash: doc.documentHash,
+        artifactRef: doc.artifactRef,
+        expiryDate: doc.expiryDate,
+        verificationStatus: doc.verificationStatus as 'pending' | 'verified' | 'rejected',
+        verifiedAt: doc.verifiedAt.toISOString(),
+      })),
     };
+  }
+
+  private async activeRoomId(tx: DbTransaction, reservationId: string): Promise<string | null> {
+    const [stay] = await tx
+      .select({ roomId: reservationRoomStays.roomId })
+      .from(reservationRoomStays)
+      .where(
+        and(
+          eq(reservationRoomStays.reservationId, reservationId),
+          isNull(reservationRoomStays.closedAt),
+        ),
+      )
+      .limit(1);
+    return stay?.roomId ?? null;
+  }
+
+  private async latestRegistrationCard(tx: DbTransaction, reservationId: string) {
+    const ctx = getRequestContext();
+    const [card] = await tx
+      .select()
+      .from(registrationCards)
+      .where(
+        and(
+          eq(registrationCards.tenantId, ctx.tenantId),
+          eq(registrationCards.reservationId, reservationId),
+          eq(registrationCards.status, 'signed'),
+        ),
+      )
+      .orderBy(asc(registrationCards.signedAt))
+      .limit(1);
+    return card ?? null;
   }
 
   async arrivals(tx: DbTransaction, propertyId: string): Promise<ArrivalRow[]> {
@@ -952,7 +1434,6 @@ export class ReservationsService {
         roomId: reservationRoomStays.roomId,
         roomNumber: rooms.number,
         roomHkStatus: rooms.hkStatus,
-        folioBalance: folios.balance,
       })
       .from(reservations)
       .innerJoin(guests, eq(guests.id, reservations.guestId))
@@ -965,7 +1446,6 @@ export class ReservationsService {
         ),
       )
       .leftJoin(rooms, eq(rooms.id, reservationRoomStays.roomId))
-      .leftJoin(folios, eq(folios.reservationId, reservations.id))
       .where(
         and(
           eq(reservations.tenantId, ctx.tenantId),
@@ -976,6 +1456,33 @@ export class ReservationsService {
         ),
       )
       .orderBy(asc(reservations.confirmationNumber));
+    const foliosByReservation = await this.folio.openFolioSummariesForReservations(
+      tx,
+      rows.map((r) => r.id),
+    );
+    const queueTasks =
+      rows.length === 0
+        ? []
+        : await tx
+            .select({
+              id: housekeepingTasks.id,
+              reservationId: housekeepingTasks.reservationId,
+              status: housekeepingTasks.status,
+            })
+            .from(housekeepingTasks)
+            .where(
+              and(
+                eq(housekeepingTasks.tenantId, ctx.tenantId),
+                eq(housekeepingTasks.propertyId, propertyId),
+                inArray(
+                  housekeepingTasks.reservationId,
+                  rows.map((r) => r.id),
+                ),
+                eq(housekeepingTasks.priority, 'queue'),
+                inArray(housekeepingTasks.status, ['pending', 'in_progress']),
+              ),
+            );
+    const queueByReservation = new Map(queueTasks.map((t) => [t.reservationId, t]));
 
     return rows.map((r) => ({
       id: r.id,
@@ -987,11 +1494,15 @@ export class ReservationsService {
       roomTypeCode: r.roomTypeCode,
       adults: r.adults,
       children: r.children,
-      balance: Money.of(r.folioBalance ?? '0', r.currency).toJSON(),
+      balance: this.boardBalance(foliosByReservation.get(r.id), r.currency),
       roomAssigned: Boolean(r.roomId),
       roomId: r.roomId ?? null,
       roomNumber: r.roomNumber ?? null,
       roomHkStatus: (r.roomHkStatus ?? null) as ArrivalRow['roomHkStatus'],
+      roomQueued: queueByReservation.has(r.id),
+      queueTaskId: queueByReservation.get(r.id)?.id ?? null,
+      queueTaskStatus: (queueByReservation.get(r.id)?.status ??
+        null) as ArrivalRow['queueTaskStatus'],
       channel: (r.source as { channel?: string } | null)?.channel ?? null,
       vipTier: r.vipTier ?? null,
     }));
@@ -1014,7 +1525,14 @@ export class ReservationsService {
     const result: RoomTypeAvailability[] = [];
     for (const rt of counts) {
       const prices = ratePlanId
-        ? await this.rates.pricesForRange(tx, propertyId, ratePlanId, rt.roomTypeId, query.from, query.to)
+        ? await this.rates.pricesForRange(
+            tx,
+            propertyId,
+            ratePlanId,
+            rt.roomTypeId,
+            query.from,
+            query.to,
+          )
         : new Map<string, Money>();
       let minAvailable = Number.POSITIVE_INFINITY;
       let total: Money | null = null;
@@ -1060,7 +1578,12 @@ export class ReservationsService {
 
     // No-shows: confirmed reservations whose arrival date has passed without check-in.
     const noShows = await tx
-      .select({ id: reservations.id, roomTypeId: reservations.roomTypeId, arrivalDate: reservations.arrivalDate, departureDate: reservations.departureDate })
+      .select({
+        id: reservations.id,
+        roomTypeId: reservations.roomTypeId,
+        arrivalDate: reservations.arrivalDate,
+        departureDate: reservations.departureDate,
+      })
       .from(reservations)
       .where(
         and(
@@ -1110,7 +1633,12 @@ export class ReservationsService {
       const [night] = await tx
         .select({ price: reservationNights.price, currency: reservationNights.currency })
         .from(reservationNights)
-        .where(and(eq(reservationNights.reservationId, res.id), eq(reservationNights.stayDate, currentDate)))
+        .where(
+          and(
+            eq(reservationNights.reservationId, res.id),
+            eq(reservationNights.stayDate, currentDate),
+          ),
+        )
         .limit(1);
       if (!night) continue;
       await this.folio.postRoomCharge(tx, helpers, {
@@ -1129,7 +1657,9 @@ export class ReservationsService {
     await tx
       .update(businessDates)
       .set({ businessDate: newDate, updatedAt: new Date() })
-      .where(and(eq(businessDates.tenantId, ctx.tenantId), eq(businessDates.propertyId, propertyId)));
+      .where(
+        and(eq(businessDates.tenantId, ctx.tenantId), eq(businessDates.propertyId, propertyId)),
+      );
 
     const trialBalance = await this.gl.trialBalance(tx, propertyId, currency, currentDate);
 
@@ -1159,7 +1689,10 @@ export class ReservationsService {
     };
   }
 
-  private async resolveGuest(tx: DbTransaction, ref: CreateReservationInput['guest']): Promise<string> {
+  private async resolveGuest(
+    tx: DbTransaction,
+    ref: CreateReservationInput['guest'],
+  ): Promise<string> {
     const ctx = getRequestContext();
     if ('id' in ref) {
       const [g] = await tx
@@ -1213,4 +1746,16 @@ export class ReservationsService {
       actorId: ctx.userId,
     });
   }
+}
+
+function normalizeRegistrationConsent(value: unknown): {
+  marketing?: boolean;
+  privacyPolicyAccepted?: boolean;
+} {
+  const data = value as { marketing?: unknown; privacyPolicyAccepted?: unknown } | null;
+  return {
+    marketing: typeof data?.marketing === 'boolean' ? data.marketing : undefined,
+    privacyPolicyAccepted:
+      typeof data?.privacyPolicyAccepted === 'boolean' ? data.privacyPolicyAccepted : undefined,
+  };
 }

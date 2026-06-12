@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
-import { runOutboxRelay } from './modules/kernel';
+import { runOutboxRelay, runWebhookDispatcher } from './modules/kernel';
 
 /**
  * The worker role (doc 04 §3 "one image, three roles"). For Phase 0 it runs the outbox relay;
@@ -9,7 +9,7 @@ import { runOutboxRelay } from './modules/kernel';
 async function main(): Promise<void> {
   const logger = new Logger('Worker');
   logger.log('Starting worker role');
-  await runOutboxRelay();
+  await Promise.all([runOutboxRelay(), runWebhookDispatcher()]);
 }
 
 main().catch((err) => {

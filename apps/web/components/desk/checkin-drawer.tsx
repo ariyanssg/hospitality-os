@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
   Check,
+  Clock3,
   CreditCard,
   FilePenLine,
   KeyRound,
@@ -87,6 +88,7 @@ export function CheckinDrawer({
 
   const [step, setStep] = useState(0);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const primaryActionRef = useRef<HTMLButtonElement>(null);
 
   const { data: arrivals } = useQuery({
     queryKey: ['arrivals', propertyId],
@@ -121,6 +123,11 @@ export function CheckinDrawer({
     setStep(0);
     setRoomId(null);
   }, [reservationId]);
+
+  useEffect(() => {
+    if (!reservationId) return;
+    primaryActionRef.current?.focus();
+  }, [reservationId, step]);
 
   /** Ready rooms of the booked type, inspected first — the HK board is the source of truth. */
   const suggestions = useMemo(() => {
@@ -161,6 +168,24 @@ export function CheckinDrawer({
     onError: (e: Error) => showToast({ tone: 'critical', text: e.message }),
   });
 
+  const queueRoom = useMutation({
+    mutationFn: () =>
+      sdk.queueRoom(reservationId!, {
+        roomId: pickedRoomId ?? undefined,
+        notes: 'Guest waiting at front desk',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['arrivals'] });
+      qc.invalidateQueries({ queryKey: ['hk-board'] });
+      qc.invalidateQueries({ queryKey: ['hk-tasks'] });
+      showToast({
+        tone: 'info',
+        text: `${arrival?.guestName ?? 'Guest'} added to housekeeping queue`,
+      });
+    },
+    onError: (e: Error) => showToast({ tone: 'critical', text: e.message }),
+  });
+
   const advance = () => {
     if (step === 2) checkIn.mutate();
     else if (step === 3) onClose();
@@ -181,7 +206,14 @@ export function CheckinDrawer({
   if (!reservationId) return null;
 
   return (
-    <div className="fixed inset-0 z-[var(--z-drawer)] flex justify-end" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[var(--z-drawer)] flex justify-end"
+      role="dialog"
+      aria-modal="true"
+      data-testid="golden-checkin-drawer"
+      data-flow="desk-checkin"
+      data-flow-step={STEPS[step]!.toLowerCase()}
+    >
       <button
         aria-label="Close"
         tabIndex={-1}
@@ -243,7 +275,11 @@ export function CheckinDrawer({
                     <div className="grid grid-cols-2 gap-2">
                       <VerifyFlag ok={!!guest?.nationality || !!guest?.email}>
                         <ScanLine className="size-[15px]" />
-                        {guest?.nationality ? `ID on profile — ${guest.nationality}` : guest?.email ? 'Profile on file' : 'No ID on profile'}
+                        {guest?.nationality
+                          ? `ID on profile — ${guest.nationality}`
+                          : guest?.email
+                            ? 'Profile on file'
+                            : 'No ID on profile'}
                       </VerifyFlag>
                       <VerifyFlag ok={false}>
                         <FilePenLine className="size-[15px]" /> Reg card — signs at the desk
@@ -275,7 +311,8 @@ export function CheckinDrawer({
                   </h3>
                   {suggestions.length === 0 && (
                     <p className="text-[var(--text-caption)] text-[var(--ink-tertiary)]">
-                      No vacant {arrival.roomTypeCode} rooms right now — check the housekeeping queue.
+                      No vacant {arrival.roomTypeCode} rooms right now — check the housekeeping
+                      queue.
                     </p>
                   )}
                   {suggestions.map((s, i) => {
@@ -285,6 +322,9 @@ export function CheckinDrawer({
                       <button
                         key={s.roomId}
                         onClick={() => setRoomId(s.roomId)}
+                        data-testid="golden-checkin-room-choice"
+                        data-room-ready={ready ? 'true' : 'false'}
+                        aria-pressed={picked}
                         className={cn(
                           'flex w-full items-center gap-3 rounded-[var(--radius-lg)] border bg-[var(--bg-surface)] px-3.5 py-3 text-left transition-colors duration-[var(--motion-fast)]',
                           picked
@@ -314,10 +354,32 @@ export function CheckinDrawer({
                           </span>
                         </span>
                         {i === 0 && <Badge tone="accent">Suggested</Badge>}
+                        {arrival.roomQueued && picked && <Badge tone="caution">Queued</Badge>}
                         {picked && <Check className="size-4 text-[var(--ink-accent)]" />}
                       </button>
                     );
                   })}
+                  {pickedRoomId && pickedRoom && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => queueRoom.mutate()}
+                      loading={queueRoom.isPending}
+                      disabled={!canCheckIn || arrival.roomQueued}
+                      data-testid="golden-checkin-queue-room"
+                      title={
+                        arrival.roomQueued
+                          ? 'This arrival is already in the housekeeping queue'
+                          : canCheckIn
+                            ? undefined
+                            : 'Check-in not permitted for your role'
+                      }
+                    >
+                      <Clock3 className="size-3.5" />
+                      {arrival.roomQueued
+                        ? 'Queued for housekeeping'
+                        : `Queue room ${pickedRoom.number} for housekeeping`}
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -343,7 +405,10 @@ export function CheckinDrawer({
                         <span className="text-[13px] text-[var(--ink-secondary)]">
                           Deposit on file — auto-applies at settlement
                         </span>
-                        <MoneyText value={money(-depositTotal)} className="text-[var(--font-size-ui)]" />
+                        <MoneyText
+                          value={money(-depositTotal)}
+                          className="text-[var(--font-size-ui)]"
+                        />
                       </div>
                     )}
                     <div className="flex items-center justify-between gap-3 bg-[var(--bg-sunken)] px-3.5 py-2 font-semibold">
@@ -360,7 +425,10 @@ export function CheckinDrawer({
               )}
 
               {step === 3 && (
-                <div className="flex flex-col items-center gap-4 px-3 py-9 text-center">
+                <div
+                  className="flex flex-col items-center gap-4 px-3 py-9 text-center"
+                  data-testid="golden-checkin-success"
+                >
                   <span className="grid size-16 place-items-center rounded-full bg-[var(--status-positive-bg)] text-[var(--status-positive-ink)] animate-[pop_.45s_var(--ease-standard)]">
                     <Check className="size-[30px]" />
                   </span>
@@ -373,8 +441,8 @@ export function CheckinDrawer({
                       occupied — rack updated live
                     </span>
                     <span className="inline-flex items-center gap-2">
-                      <Sparkles className="size-3.5 text-[var(--status-positive-ink)]" /> Housekeeping
-                      sees the occupancy flip
+                      <Sparkles className="size-3.5 text-[var(--status-positive-ink)]" />{' '}
+                      Housekeeping sees the occupancy flip
                     </span>
                   </div>
                   <p className="m-0 text-[12px] text-[var(--ink-tertiary)]">
@@ -398,10 +466,12 @@ export function CheckinDrawer({
             </Button>
           )}
           <Button
+            ref={primaryActionRef}
             onClick={advance}
             loading={checkIn.isPending}
             disabled={!canCheckIn || (step === 2 && !pickedRoomId)}
             title={canCheckIn ? undefined : 'Check-in not permitted for your role'}
+            data-testid="golden-checkin-primary"
           >
             {step === 0
               ? 'Verified — choose room'

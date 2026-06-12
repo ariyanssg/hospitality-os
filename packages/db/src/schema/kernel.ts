@@ -78,7 +78,9 @@ export const tenants = pgTable('tenants', {
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   status: text('status').notNull().default('active'), // active | suspended | offboarding
-  settings: jsonb('settings').notNull().default(sql`'{}'::jsonb`),
+  settings: jsonb('settings')
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   ...auditColumns(),
 });
 
@@ -93,7 +95,9 @@ export const properties = pgTable(
     currency: text('currency').notNull().default('USD'),
     /** Local time the business day rolls at night audit — NOT midnight (doc 07 §1). */
     businessDayRollover: text('business_day_rollover').notNull().default('03:00'),
-    settings: jsonb('settings').notNull().default(sql`'{}'::jsonb`),
+    settings: jsonb('settings')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     ...auditColumns(),
   },
   (t) => [
@@ -161,7 +165,9 @@ export const roleAssignments = pgTable(
     propertyId: propertyIdNullable(),
     department: text('department'),
     /** Closed-set ABAC conditions (amount thresholds, own-record, …) — doc 06 §4. */
-    conditions: jsonb('conditions').notNull().default(sql`'{}'::jsonb`),
+    conditions: jsonb('conditions')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     /** Rare explicit deny grant — overrides allows (doc 06 §1). */
     isDeny: boolean('is_deny').notNull().default(false),
     ...auditColumns(),
@@ -196,8 +202,64 @@ export const outboxEvents = pgTable(
   },
   (t) => [
     // Relay hot set: tiny, only unpublished rows.
-    index('outbox_unpublished').on(t.occurredAt).where(sql`published_at IS NULL`),
+    index('outbox_unpublished')
+      .on(t.occurredAt)
+      .where(sql`published_at IS NULL`),
     index('outbox_tenant_aggregate').on(t.tenantId, t.aggregateType, t.aggregateId),
+  ],
+);
+
+/* ─────────────────────────── Webhooks (doc 08 §8) ───────────────────────────
+ * Tenant-managed endpoints subscribe to the public event taxonomy. Delivery attempts are durable
+ * so retries, dead letters, and manual replay can be inspected from the platform/API.
+ */
+
+export const webhookEndpoints = pgTable(
+  'webhook_endpoints',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyIdNullable(),
+    name: text('name').notNull(),
+    url: text('url').notNull(),
+    secret: text('secret').notNull(),
+    eventTypes: text('event_types').array().notNull(),
+    status: text('status').notNull().default('active'), // active | disabled
+    failureCount: integer('failure_count').notNull().default(0),
+    lastDeliveredAt: timestamp('last_delivered_at', { withTimezone: true }),
+    lastFailedAt: timestamp('last_failed_at', { withTimezone: true }),
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    ...auditColumns(),
+  },
+  (t) => [
+    index('webhook_endpoints_tenant').on(t.tenantId),
+    index('webhook_endpoints_active').on(t.tenantId, t.status),
+  ],
+);
+
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyIdNullable(),
+    endpointId: uuid('endpoint_id')
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id').notNull(),
+    eventType: text('event_type').notNull(),
+    attempt: integer('attempt').notNull().default(1),
+    status: text('status').notNull().default('pending'), // pending | delivered | failed | dead
+    statusCode: integer('status_code'),
+    error: text('error'),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('webhook_delivery_attempt_unique').on(t.endpointId, t.eventId, t.attempt),
+    index('webhook_deliveries_due').on(t.status, t.nextAttemptAt),
+    index('webhook_deliveries_endpoint').on(t.tenantId, t.endpointId, t.createdAt),
   ],
 );
 

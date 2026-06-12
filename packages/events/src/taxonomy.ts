@@ -11,6 +11,7 @@ export const EVENT_TYPES = [
   'reservation.checked_out',
   'reservation.no_show',
   'reservation.reinstated',
+  'reservation.room_queued',
   // rooms / housekeeping
   'room.assigned',
   'room.moved',
@@ -31,6 +32,7 @@ export const EVENT_TYPES = [
   'folio.refunded',
   'folio.closed',
   'folio.transferred',
+  'payment.authorized',
   'deposit.recorded',
   'deposit.applied',
   'cashier.session_opened',

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Check, CreditCard, Lock, Mail, Sparkles, X } from 'lucide-react';
 import { Badge, Button, Kbd, MoneyText, Skeleton } from '@vela/ui';
@@ -25,7 +25,12 @@ export function CheckoutDrawer({
   const canCheckOut = useCan('reservation.checkout');
 
   const [done, setDone] = useState(false);
+  const primaryActionRef = useRef<HTMLButtonElement>(null);
   useEffect(() => setDone(false), [departure?.id]);
+  useEffect(() => {
+    if (!departure) return;
+    primaryActionRef.current?.focus();
+  }, [departure, done]);
 
   const { data: reservation } = useQuery({
     queryKey: ['reservation', departure?.id],
@@ -76,7 +81,14 @@ export function CheckoutDrawer({
   const loading = !reservation || (!!reservation.folioId && !folio);
 
   return (
-    <div className="fixed inset-0 z-[var(--z-drawer)] flex justify-end" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[var(--z-drawer)] flex justify-end"
+      role="dialog"
+      aria-modal="true"
+      data-testid="golden-checkout-drawer"
+      data-flow="desk-checkout"
+      data-flow-step={done ? 'done' : 'review'}
+    >
       <button
         aria-label="Close"
         tabIndex={-1}
@@ -106,7 +118,10 @@ export function CheckoutDrawer({
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {done ? (
-            <div className="flex flex-col items-center gap-4 px-3 py-9 text-center">
+            <div
+              className="flex flex-col items-center gap-4 px-3 py-9 text-center"
+              data-testid="golden-checkout-success"
+            >
               <span className="grid size-16 place-items-center rounded-full bg-[var(--status-positive-bg)] text-[var(--status-positive-ink)] animate-[pop_.45s_var(--ease-standard)]">
                 <Check className="size-[30px]" />
               </span>
@@ -121,8 +136,8 @@ export function CheckoutDrawer({
                   {departure.roomNumber ?? ''} queued for housekeeping
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <Lock className="size-3.5 text-[var(--status-positive-ink)]" /> Postings immutable —
-                  reversal-only corrections
+                  <Lock className="size-3.5 text-[var(--status-positive-ink)]" /> Postings immutable
+                  — reversal-only corrections
                 </span>
               </div>
               <style>{`@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.08) } 100% { transform: scale(1); opacity: 1 } }`}</style>
@@ -193,13 +208,17 @@ export function CheckoutDrawer({
           </span>
           <span className="flex-1" />
           {done ? (
-            <Button onClick={onClose}>Done</Button>
+            <Button ref={primaryActionRef} onClick={onClose} data-testid="golden-checkout-done">
+              Done
+            </Button>
           ) : (
             <Button
+              ref={primaryActionRef}
               onClick={() => checkout.mutate()}
               loading={checkout.isPending}
               disabled={!canCheckOut || loading}
               title={canCheckOut ? undefined : 'Check-out not permitted for your role'}
+              data-testid="golden-checkout-primary"
             >
               {due > 0 ? 'Collect & check out' : 'Check out'}
               <ArrowRight className="size-3.5" />

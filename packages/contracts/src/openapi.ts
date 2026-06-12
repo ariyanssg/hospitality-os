@@ -3,30 +3,48 @@ import { z } from './zod';
 import { MoneySchema, PageMetaSchema, ProblemSchema } from './common';
 import {
   ArrivalRowSchema,
+  AvailableRoomSchema,
+  AvailableRoomsQuerySchema,
   CancelReservationSchema,
   CheckInSchema,
   CheckOutSchema,
+  CreateGroupBlockSchema,
   CreateReservationSchema,
   DepartureRowSchema,
+  GroupBlockListRowSchema,
+  GroupBlockSchema,
+  ImportRoomingListSchema,
   InHouseRowSchema,
+  IdDocumentSchema,
+  IssueKeyCardSchema,
+  KeyCardSchema,
   ModifyReservationSchema,
   NoShowSchema,
+  PickupGroupBlockSchema,
+  QueueRoomSchema,
   ReinstateSchema,
+  RegistrationCardSchema,
   ReservationListQuerySchema,
   ReservationListRowSchema,
   ReservationSchema,
+  RoomingListImportResultSchema,
   RoomMoveSchema,
   RoomRackQuerySchema,
   RoomRackRowSchema,
+  SignRegistrationCardSchema,
+  VerifyIdDocumentSchema,
   WalkInSchema,
 } from './reservations';
 import {
+  AuthorizePaymentSchema,
   CashierSessionSchema,
+  CapturePaymentIntentSchema,
   CloseCashierSessionSchema,
   CreateFolioSchema,
   DepositSchema,
   FolioSchema,
   OpenCashierSessionSchema,
+  PaymentIntentSchema,
   PostChargeSchema,
   RecordDepositSchema,
   RecordPaymentSchema,
@@ -44,6 +62,7 @@ import {
   HkTaskSchema,
   MaintenanceTicketSchema,
   OutOfOrderSchema,
+  RoomBlockSchema,
   RoomStatusUpdateSchema,
 } from './housekeeping';
 import {
@@ -86,6 +105,12 @@ import {
   SendMessageSchema,
   UpdateGdprRequestSchema,
 } from './messaging';
+import {
+  CreateWebhookEndpointSchema,
+  WebhookDeliverySchema,
+  WebhookEndpointSchema,
+  WebhookSecretSchema,
+} from './webhooks';
 
 /**
  * Code-first OpenAPI (doc 08 §7). The same Zod schemas validate the API boundary and generate this
@@ -102,10 +127,19 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     Me: MeSchema,
     CreateReservation: CreateReservationSchema,
     Reservation: ReservationSchema,
+    RegistrationCard: RegistrationCardSchema,
+    SignRegistrationCard: SignRegistrationCardSchema,
+    KeyCard: KeyCardSchema,
+    IssueKeyCard: IssueKeyCardSchema,
+    IdDocument: IdDocumentSchema,
+    VerifyIdDocument: VerifyIdDocumentSchema,
     ArrivalRow: ArrivalRowSchema,
     Folio: FolioSchema,
     PostCharge: PostChargeSchema,
     RecordPayment: RecordPaymentSchema,
+    PaymentIntent: PaymentIntentSchema,
+    AuthorizePayment: AuthorizePaymentSchema,
+    CapturePaymentIntent: CapturePaymentIntentSchema,
     Refund: RefundSchema,
     RoomTypeAvailability: RoomTypeAvailabilitySchema,
     TrialBalance: TrialBalanceSchema,
@@ -116,6 +150,14 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     DepartureRow: DepartureRowSchema,
     InHouseRow: InHouseRowSchema,
     RoomRackRow: RoomRackRowSchema,
+    AvailableRoom: AvailableRoomSchema,
+    CreateGroupBlock: CreateGroupBlockSchema,
+    PickupGroupBlock: PickupGroupBlockSchema,
+    QueueRoom: QueueRoomSchema,
+    ImportRoomingList: ImportRoomingListSchema,
+    RoomingListImportResult: RoomingListImportResultSchema,
+    GroupBlock: GroupBlockSchema,
+    GroupBlockListRow: GroupBlockListRowSchema,
     TransferPosting: TransferPostingSchema,
     CreateFolio: CreateFolioSchema,
     OpenCashierSession: OpenCashierSessionSchema,
@@ -128,6 +170,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     HkBoardRoom: HkBoardRoomSchema,
     RoomStatusUpdate: RoomStatusUpdateSchema,
     OutOfOrder: OutOfOrderSchema,
+    RoomBlock: RoomBlockSchema,
     MaintenanceTicket: MaintenanceTicketSchema,
     CreateMaintenanceTicket: CreateMaintenanceTicketSchema,
     RatePlan: RatePlanSchema,
@@ -158,6 +201,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     CreateGdprRequest: CreateGdprRequestSchema,
     UpdateGdprRequest: UpdateGdprRequestSchema,
     GdprRequest: GdprRequestSchema,
+    WebhookEndpoint: WebhookEndpointSchema,
+    CreateWebhookEndpoint: CreateWebhookEndpointSchema,
+    WebhookSecret: WebhookSecretSchema,
+    WebhookDelivery: WebhookDeliverySchema,
   };
   for (const [name, schema] of Object.entries(components)) r.register(name, schema);
 
@@ -221,6 +268,64 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     },
   });
 
+  r.registerPath({
+    method: 'post',
+    path: '/reservations/{id}/registration-card',
+    summary: 'Capture a signed registration card for check-in',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(SignRegistrationCardSchema),
+    },
+    responses: {
+      201: { description: 'Reservation', ...json(ReservationSchema) },
+      409: problem('STATE_CONFLICT'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/reservations/{id}/key-cards',
+    summary: 'Request or record key-card/mobile-key issuance for a reservation',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(IssueKeyCardSchema),
+    },
+    responses: {
+      201: { description: 'Reservation', ...json(ReservationSchema) },
+      409: problem('STATE_CONFLICT'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/reservations/{id}/id-documents',
+    summary: 'Record minimized ID document verification evidence for check-in',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(VerifyIdDocumentSchema),
+    },
+    responses: {
+      201: { description: 'Reservation', ...json(ReservationSchema) },
+      409: problem('STATE_CONFLICT'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/reservations/{id}/queue-room',
+    summary: 'Queue an early arrival for room readiness and bump housekeeping priority',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(QueueRoomSchema),
+    },
+    responses: {
+      200: { description: 'Reservation', ...json(ReservationSchema) },
+      409: problem('STATE_CONFLICT'),
+      422: problem('VALIDATION_FAILED'),
+    },
+  });
+
   for (const [action, body] of [
     ['check-in', CheckInSchema],
     ['check-out', CheckOutSchema],
@@ -230,7 +335,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       method: 'post',
       path: `/reservations/{id}/${action}`,
       summary: `Reservation action: ${action}`,
-      request: { params: z.object({ id: z.string().uuid() }), body: json(body) },
+      request: {
+        params: z.object({ id: z.string().uuid() }),
+        headers: z.object({ 'Idempotency-Key': idemHeader }),
+        body: json(body),
+      },
       responses: {
         200: { description: 'Reservation', ...json(ReservationSchema) },
         409: problem('STATE_CONFLICT'),
@@ -242,7 +351,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'post',
     path: '/folios/{id}/postings',
     summary: 'Post a charge to a folio',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(PostChargeSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(PostChargeSchema),
+    },
     responses: {
       201: { description: 'Folio', ...json(FolioSchema) },
       403: problem('PERMISSION_DENIED'),
@@ -253,8 +366,43 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'post',
     path: '/folios/{id}/payments',
     summary: 'Record a payment against a folio',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(RecordPaymentSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(RecordPaymentSchema),
+    },
     responses: { 201: { description: 'Folio', ...json(FolioSchema) } },
+  });
+
+  r.registerPath({
+    method: 'post',
+    path: '/folios/{id}/payment-intents',
+    summary: 'Authorize a PSP-tokenized card payment intent for a folio',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(AuthorizePaymentSchema),
+    },
+    responses: {
+      201: { description: 'Payment intent', ...json(PaymentIntentSchema) },
+      409: problem('STATE_CONFLICT'),
+      422: problem('VALIDATION_FAILED'),
+    },
+  });
+
+  r.registerPath({
+    method: 'post',
+    path: '/payments/intents/{id}/capture',
+    summary: 'Capture an authorized payment intent and post it to the folio ledger',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(CapturePaymentIntentSchema),
+    },
+    responses: {
+      200: { description: 'Folio', ...json(FolioSchema) },
+      409: problem('STATE_CONFLICT'),
+    },
   });
 
   r.registerPath({
@@ -287,7 +435,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       method: 'post',
       path: `/reservations/{id}/${action}`,
       summary: `Reservation action: ${action}`,
-      request: { params: z.object({ id: z.string().uuid() }), body: json(body) },
+      request: {
+        params: z.object({ id: z.string().uuid() }),
+        headers: z.object({ 'Idempotency-Key': idemHeader }),
+        body: json(body),
+      },
       responses: {
         200: { description: 'Reservation', ...json(ReservationSchema) },
         409: problem('STATE_CONFLICT or AVAILABILITY_CONFLICT'),
@@ -305,6 +457,65 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     },
     responses: {
       201: { description: 'Reservation (checked in)', ...json(ReservationSchema) },
+      409: problem('AVAILABILITY_CONFLICT'),
+    },
+  });
+
+  r.registerPath({
+    method: 'get',
+    path: '/group-blocks',
+    summary: 'List group blocks with pickup totals',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Group blocks', ...json(z.array(GroupBlockListRowSchema)) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/group-blocks/{id}',
+    summary: 'Get group block inventory and routing instructions',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+      200: { description: 'Group block', ...json(GroupBlockSchema) },
+      404: problem('Not found'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/group-blocks',
+    summary: 'Create a group block and hold blocked inventory',
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(CreateGroupBlockSchema),
+    },
+    responses: {
+      201: { description: 'Group block', ...json(GroupBlockSchema) },
+      409: problem('AVAILABILITY_CONFLICT'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/group-blocks/{id}/pickup',
+    summary: 'Pick up one room from a group block into a linked reservation',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(PickupGroupBlockSchema),
+    },
+    responses: {
+      201: { description: 'Reservation', ...json(ReservationSchema) },
+      409: problem('AVAILABILITY_CONFLICT'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/group-blocks/{id}/rooming-list',
+    summary: 'Import a rooming list and pick up reservations from a group block',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(ImportRoomingListSchema),
+    },
+    responses: {
+      201: { description: 'Imported rooming list', ...json(RoomingListImportResultSchema) },
       409: problem('AVAILABILITY_CONFLICT'),
     },
   });
@@ -330,20 +541,37 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     request: { query: RoomRackQuerySchema, headers: z.object({ 'X-Property-Id': propertyHeader }) },
     responses: { 200: { description: 'Rack', ...json(z.array(RoomRackRowSchema)) } },
   });
+  r.registerPath({
+    method: 'get',
+    path: '/front-desk/available-rooms',
+    summary: 'Date-aware available room numbers for walk-ins and room assignment',
+    request: {
+      query: AvailableRoomsQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Available rooms', ...json(z.array(AvailableRoomSchema)) } },
+  });
 
   // ── Folio operations, cashiering, deposits ──
   r.registerPath({
     method: 'post',
     path: '/folios',
     summary: 'Create an additional folio for a reservation (splits/routing)',
-    request: { body: json(CreateFolioSchema) },
+    request: {
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(CreateFolioSchema),
+    },
     responses: { 201: { description: 'Folio', ...json(FolioSchema) } },
   });
   r.registerPath({
     method: 'post',
     path: '/folios/{id}/transfers',
     summary: 'Transfer a posting to another folio (reversal + repost)',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(TransferPostingSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(TransferPostingSchema),
+    },
     responses: {
       200: { description: 'Source folio', ...json(FolioSchema) },
       409: problem('STATE_CONFLICT'),
@@ -353,21 +581,32 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'post',
     path: '/cashier-sessions',
     summary: 'Open a cashier session',
-    request: { body: json(OpenCashierSessionSchema) },
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(OpenCashierSessionSchema),
+    },
     responses: { 201: { description: 'Session', ...json(CashierSessionSchema) } },
   });
   r.registerPath({
     method: 'post',
     path: '/cashier-sessions/{id}/close',
     summary: 'Close a cashier session (expected vs counted, variance)',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(CloseCashierSessionSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(CloseCashierSessionSchema),
+    },
     responses: { 200: { description: 'Session', ...json(CashierSessionSchema) } },
   });
   r.registerPath({
     method: 'post',
     path: '/reservations/{id}/deposits',
     summary: 'Record a pre-arrival deposit (held on the deposit ledger until check-in)',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(RecordDepositSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(RecordDepositSchema),
+    },
     responses: { 201: { description: 'Deposit', ...json(DepositSchema) } },
   });
 
@@ -393,7 +632,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'post',
     path: '/housekeeping/tasks',
     summary: 'Create a housekeeping task',
-    request: { body: json(CreateHkTaskSchema) },
+    request: {
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(CreateHkTaskSchema),
+    },
     responses: { 201: { description: 'Task', ...json(HkTaskSchema) } },
   });
   for (const action of ['start', 'complete', 'skip'] as const) {
@@ -401,7 +643,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       method: 'post',
       path: `/housekeeping/tasks/{id}/${action}`,
       summary: `Housekeeping task action: ${action}`,
-      request: { params: z.object({ id: z.string().uuid() }) },
+      request: {
+        params: z.object({ id: z.string().uuid() }),
+        headers: z.object({ 'Idempotency-Key': idemHeader }),
+      },
       responses: {
         200: { description: 'Task', ...json(HkTaskSchema) },
         409: problem('STATE_CONFLICT'),
@@ -409,17 +654,32 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     });
   }
   r.registerPath({
+    method: 'get',
+    path: '/rooms/out-of-service',
+    summary: 'List active and upcoming out-of-order/out-of-service room blocks',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Room blocks', ...json(z.array(RoomBlockSchema)) } },
+  });
+  r.registerPath({
     method: 'post',
     path: '/rooms/{id}/status',
     summary: 'Update room housekeeping status (dirty → clean → inspected)',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(RoomStatusUpdateSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(RoomStatusUpdateSchema),
+    },
     responses: { 200: { description: 'Room', ...json(HkBoardRoomSchema) } },
   });
   r.registerPath({
     method: 'post',
     path: '/rooms/{id}/out-of-order',
     summary: 'Place a room out of order (decrements availability, CHECK-guarded)',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(OutOfOrderSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(OutOfOrderSchema),
+    },
     responses: {
       201: { description: 'Created', ...json(z.object({ id: z.string().uuid() })) },
       409: problem('AVAILABILITY_CONFLICT'),
@@ -436,7 +696,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'post',
     path: '/maintenance/tickets',
     summary: 'Report a maintenance ticket',
-    request: { body: json(CreateMaintenanceTicketSchema) },
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(CreateMaintenanceTicketSchema),
+    },
     responses: { 201: { description: 'Ticket', ...json(MaintenanceTicketSchema) } },
   });
 
@@ -459,7 +722,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'put',
     path: '/rate-plans/{id}/prices',
     summary: 'Bulk price-grid upsert',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(PriceGridUpdateSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(PriceGridUpdateSchema),
+    },
     responses: { 200: { description: 'Updated prices', ...json(z.array(RatePriceRowSchema)) } },
   });
 
@@ -492,7 +759,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'patch',
     path: '/guests/{id}',
     summary: 'Update a guest profile',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(UpdateGuestSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(UpdateGuestSchema),
+    },
     responses: { 200: { description: 'Guest', ...json(GuestProfileSchema) } },
   });
 
@@ -653,7 +924,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     path: '/messages/send',
     summary: 'Send a transactional guest message and attach it to the inbox',
     request: {
-      headers: z.object({ 'X-Property-Id': propertyHeader }),
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
       body: json(SendMessageSchema),
     },
     responses: { 200: { description: 'Message', ...json(MessageSchema) } },
@@ -670,7 +941,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     path: '/gdpr/requests',
     summary: 'Create a GDPR data-subject request',
     request: {
-      headers: z.object({ 'X-Property-Id': propertyHeader }),
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
       body: json(CreateGdprRequestSchema),
     },
     responses: { 201: { description: 'Request', ...json(GdprRequestSchema) } },
@@ -679,8 +950,47 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'patch',
     path: '/gdpr/requests/{id}',
     summary: 'Update a GDPR request status',
-    request: { params: z.object({ id: z.string().uuid() }), body: json(UpdateGdprRequestSchema) },
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(UpdateGdprRequestSchema),
+    },
     responses: { 200: { description: 'Request', ...json(GdprRequestSchema) } },
+  });
+
+  r.registerPath({
+    method: 'get',
+    path: '/webhooks/endpoints',
+    summary: 'List tenant webhook endpoints',
+    responses: {
+      200: { description: 'Webhook endpoints', ...json(z.array(WebhookEndpointSchema)) },
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/webhooks/endpoints',
+    summary: 'Create a signed webhook endpoint subscription',
+    request: {
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(CreateWebhookEndpointSchema),
+    },
+    responses: {
+      201: { description: 'Webhook endpoint and one-time secret', ...json(WebhookSecretSchema) },
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/webhooks/endpoints/{id}/disable',
+    summary: 'Disable a webhook endpoint',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { description: 'Webhook endpoint', ...json(WebhookEndpointSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/webhooks/deliveries/{id}/redeliver',
+    summary: 'Queue manual webhook redelivery',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 202: { description: 'Queued delivery', ...json(WebhookDeliverySchema) } },
   });
 
   r.registerPath({
@@ -688,7 +998,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     path: '/night-audit/run',
     summary: 'Run the night audit (roll business date, post room+tax, generate daily journal)',
     request: {
-      headers: z.object({ 'X-Property-Id': propertyHeader }),
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
       body: json(NightAuditRunSchema),
     },
     responses: { 200: { description: 'Result', ...json(NightAuditResultSchema) } },

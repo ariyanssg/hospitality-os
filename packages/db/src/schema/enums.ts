@@ -13,6 +13,8 @@ export const reservationStatus = pgEnum('reservation_status', [
   'released',
 ]);
 
+export const groupBlockStatus = pgEnum('group_block_status', ['tentative', 'definite', 'released']);
+
 export const folioStatus = pgEnum('folio_status', ['open', 'closed', 'transferred']);
 
 export const folioType = pgEnum('folio_type', ['guest', 'master', 'company', 'paymaster']);

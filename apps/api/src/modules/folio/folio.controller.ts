@@ -1,5 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, Post } from '@nestjs/common';
 import {
+  AuthorizePaymentSchema,
+  CapturePaymentIntentSchema,
   CloseCashierSessionSchema,
   CreateFolioSchema,
   OpenCashierSessionSchema,
@@ -11,6 +13,7 @@ import {
   type CashierSession,
   type Deposit,
   type Folio,
+  type PaymentIntent,
 } from '@vela/contracts';
 import {
   Ctx,
@@ -27,7 +30,9 @@ import { CashierService } from './cashier.service';
 function requireProperty(ctx: RequestContext): string {
   const propertyId = ctx.propertyIds[0];
   if (!propertyId) {
-    throw new ValidationError('A property is required', [{ field: 'X-Property-Id', code: 'REQUIRED' }]);
+    throw new ValidationError('A property is required', [
+      { field: 'X-Property-Id', code: 'REQUIRED' },
+    ]);
   }
   return propertyId;
 }
@@ -42,7 +47,7 @@ export class FolioController {
   @Get(':id')
   @RequirePermission('folio.view')
   async get(@Param('id') id: string): Promise<Folio> {
-    return this.uow.run((tx) => this.folio.getDto(tx, id));
+    return this.uow.read((tx) => this.folio.getDto(tx, id));
   }
 
   @Post()
@@ -50,9 +55,15 @@ export class FolioController {
   @RequirePermission('folio.create')
   async create(
     @Body(new ZodValidationPipe(CreateFolioSchema)) body: typeof CreateFolioSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<Folio> {
-    return this.uow.run(async (tx, helpers) => {
-      const id = await this.folio.createFolioForReservation(tx, helpers, body.reservationId, body.type);
+    return this.uow.runIdempotent(idempotencyKey, body, async (tx, helpers) => {
+      const id = await this.folio.createFolioForReservation(
+        tx,
+        helpers,
+        body.reservationId,
+        body.type,
+      );
       return this.folio.getDto(tx, id);
     });
   }
@@ -62,9 +73,17 @@ export class FolioController {
   async transfer(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(TransferPostingSchema)) body: typeof TransferPostingSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<Folio> {
-    return this.uow.run(async (tx, helpers) => {
-      await this.folio.transferPosting(tx, helpers, id, body.postingId, body.toFolioId, body.reason);
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
+      await this.folio.transferPosting(
+        tx,
+        helpers,
+        id,
+        body.postingId,
+        body.toFolioId,
+        body.reason,
+      );
       return this.folio.getDto(tx, id);
     });
   }
@@ -74,8 +93,9 @@ export class FolioController {
   async postCharge(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(PostChargeSchema)) body: typeof PostChargeSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<Folio> {
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
       await this.folio.postCharge(tx, helpers, {
         folioId: id,
         chargeCode: body.chargeCode,
@@ -92,8 +112,9 @@ export class FolioController {
   async pay(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(RecordPaymentSchema)) body: typeof RecordPaymentSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<Folio> {
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
       await this.folio.recordPayment(tx, helpers, {
         folioId: id,
         method: body.method,
@@ -105,13 +126,35 @@ export class FolioController {
     });
   }
 
+  @Post(':id/payment-intents')
+  @HttpCode(201)
+  @RequirePermission('payment.collect')
+  async authorizePayment(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AuthorizePaymentSchema))
+    body: typeof AuthorizePaymentSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<PaymentIntent> {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
+      const paymentIntentId = await this.folio.authorizePayment(tx, helpers, id, body);
+      return this.folio.paymentIntentDto(tx, paymentIntentId);
+    });
+  }
+
   @Post(':id/close')
   @RequirePermission('folio.close')
-  async close(@Param('id') id: string): Promise<Folio> {
-    return this.uow.run(async (tx, helpers) => {
-      await this.folio.close(tx, helpers, id);
-      return this.folio.getDto(tx, id);
-    });
+  async close(
+    @Param('id') id: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<Folio> {
+    return this.uow.runIdempotent(
+      idempotencyKey,
+      { id, action: 'folio.close' },
+      async (tx, helpers) => {
+        await this.folio.close(tx, helpers, id);
+        return this.folio.getDto(tx, id);
+      },
+    );
   }
 }
 
@@ -127,11 +170,18 @@ export class CashierController {
   @RequirePermission('cashier.open')
   async open(
     @Ctx() ctx: RequestContext,
-    @Body(new ZodValidationPipe(OpenCashierSessionSchema)) body: typeof OpenCashierSessionSchema._output,
+    @Body(new ZodValidationPipe(OpenCashierSessionSchema))
+    body: typeof OpenCashierSessionSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<CashierSession> {
     const propertyId = requireProperty(ctx);
-    return this.uow.run(async (tx, helpers) => {
-      const id = await this.cashier.open(tx, helpers, propertyId, Money.fromJSON(body.openingFloat));
+    return this.uow.runIdempotent(idempotencyKey, { propertyId, ...body }, async (tx, helpers) => {
+      const id = await this.cashier.open(
+        tx,
+        helpers,
+        propertyId,
+        Money.fromJSON(body.openingFloat),
+      );
       return this.cashier.getDto(tx, id);
     });
   }
@@ -147,10 +197,18 @@ export class CashierController {
   @RequirePermission('cashier.close')
   async close(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(CloseCashierSessionSchema)) body: typeof CloseCashierSessionSchema._output,
+    @Body(new ZodValidationPipe(CloseCashierSessionSchema))
+    body: typeof CloseCashierSessionSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<CashierSession> {
-    return this.uow.run(async (tx, helpers) => {
-      await this.cashier.close(tx, helpers, id, Money.fromJSON(body.countedTotal), body.varianceReason);
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
+      await this.cashier.close(
+        tx,
+        helpers,
+        id,
+        Money.fromJSON(body.countedTotal),
+        body.varianceReason,
+      );
       return this.cashier.getDto(tx, id);
     });
   }
@@ -169,15 +227,20 @@ export class DepositsController {
   async record(
     @Param('reservationId') reservationId: string,
     @Body(new ZodValidationPipe(RecordDepositSchema)) body: typeof RecordDepositSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<Deposit> {
-    return this.uow.run(async (tx, helpers) => {
-      const id = await this.folio.recordDeposit(tx, helpers, reservationId, {
-        method: body.method,
-        amount: Money.fromJSON(body.amount),
-        reference: body.reference,
-      });
-      return this.folio.depositDto(tx, id);
-    });
+    return this.uow.runIdempotent(
+      idempotencyKey,
+      { reservationId, ...body },
+      async (tx, helpers) => {
+        const id = await this.folio.recordDeposit(tx, helpers, reservationId, {
+          method: body.method,
+          amount: Money.fromJSON(body.amount),
+          reference: body.reference,
+        });
+        return this.folio.depositDto(tx, id);
+      },
+    );
   }
 
   @Get()
@@ -199,8 +262,9 @@ export class PaymentController {
   async refund(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(RefundSchema)) body: typeof RefundSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<Folio> {
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
       const refundId = await this.folio.refundPayment(
         tx,
         helpers,
@@ -210,6 +274,21 @@ export class PaymentController {
       );
       // Return the affected folio.
       const folioId = await this.folio.folioIdForPayment(tx, refundId);
+      return this.folio.getDto(tx, folioId);
+    });
+  }
+
+  @Post('intents/:id/capture')
+  @RequirePermission('payment.collect')
+  async captureIntent(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CapturePaymentIntentSchema))
+    body: typeof CapturePaymentIntentSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<Folio> {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
+      const paymentId = await this.folio.capturePaymentIntent(tx, helpers, id, body);
+      const folioId = await this.folio.folioIdForPayment(tx, paymentId);
       return this.folio.getDto(tx, folioId);
     });
   }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Query } from '@nestjs/common';
 import {
   GuestSearchQuerySchema,
   UpdateGuestSchema,
@@ -18,7 +18,8 @@ export class GuestsController {
   @Get()
   @RequirePermission('guest.view')
   async search(
-    @Query(new ZodValidationPipe(GuestSearchQuerySchema)) query: typeof GuestSearchQuerySchema._output,
+    @Query(new ZodValidationPipe(GuestSearchQuerySchema))
+    query: typeof GuestSearchQuerySchema._output,
   ): Promise<Guest[]> {
     return this.uow.read((tx) => this.guests.search(tx, query.q, query.limit));
   }
@@ -34,8 +35,9 @@ export class GuestsController {
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateGuestSchema)) body: typeof UpdateGuestSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<GuestProfile> {
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
       await this.guests.update(tx, helpers, id, body);
       return this.guests.profile(tx, id);
     });

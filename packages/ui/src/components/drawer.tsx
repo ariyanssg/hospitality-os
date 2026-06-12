@@ -16,6 +16,7 @@ export function Drawer({
   children,
   footer,
   width = 'md',
+  testId,
 }: {
   open: boolean;
   onClose: () => void;
@@ -24,6 +25,7 @@ export function Drawer({
   children: ReactNode;
   footer?: ReactNode;
   width?: 'sm' | 'md' | 'lg';
+  testId?: string;
 }): ReactNode {
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
@@ -46,7 +48,12 @@ export function Drawer({
   const widthClass = width === 'sm' ? 'w-[380px]' : width === 'lg' ? 'w-[680px]' : 'w-[520px]';
 
   return (
-    <div className="fixed inset-0 z-[var(--z-drawer)] flex justify-end" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[var(--z-drawer)] flex justify-end"
+      role="dialog"
+      aria-modal="true"
+      data-testid={testId}
+    >
       <button
         aria-label="Close"
         className="absolute inset-0 bg-[var(--bg-overlay)] animate-[fade_var(--motion-base)]"
@@ -68,7 +75,9 @@ export function Drawer({
               {title}
             </h2>
             {description && (
-              <p className="mt-0.5 text-[var(--text-caption)] text-[var(--ink-tertiary)]">{description}</p>
+              <p className="mt-0.5 text-[var(--text-caption)] text-[var(--ink-tertiary)]">
+                {description}
+              </p>
             )}
           </div>
           <button
@@ -79,7 +88,9 @@ export function Drawer({
             <X className="size-4" />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto px-[var(--space-6)] py-[var(--space-4)]">{children}</div>
+        <div className="flex-1 overflow-y-auto px-[var(--space-6)] py-[var(--space-4)]">
+          {children}
+        </div>
         {footer && (
           <footer className="border-t border-[var(--line-hairline)] bg-[var(--bg-raised)] px-[var(--space-6)] py-[var(--space-4)]">
             {footer}

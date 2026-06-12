@@ -1,24 +1,35 @@
 'use client';
-import { useRouter } from 'next/navigation';
-import { Bell, Moon, Rows2, Rows3, Rows4, Sun } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bell, CalendarPlus, ChevronDown, LogIn, Moon, Rows2, Rows3, Rows4, Sun } from 'lucide-react';
 import { Button, useTheme } from '@vela/ui';
-import { useSession, useUiPrefs } from '@/lib/store';
+import { useDeskIntent, useSession, useUiPrefs } from '@/lib/store';
 import { PropertySwitcher } from './property-switcher';
 import { CommandK } from './command-k';
 
 /** Top bar (56px) — property switcher · ⌘K search · create · density · theme · bell · avatar (doc 18 §2). */
 export function TopBar() {
-  const router = useRouter();
   const { theme, toggle } = useTheme();
   const me = useSession((s) => s.me);
   const density = useUiPrefs((s) => s.density);
   const cycleDensity = useUiPrefs((s) => s.cycleDensity);
+  const openReservationCreate = useDeskIntent((s) => s.openReservationCreate);
+  const [createOpen, setCreateOpen] = useState(false);
+  const createRef = useRef<HTMLDivElement>(null);
   const DensityIcon = density === 'compact' ? Rows4 : density === 'touch' ? Rows2 : Rows3;
   const initials = (me?.name ?? 'U')
     .split(' ')
     .map((w) => w[0])
     .slice(0, 2)
     .join('');
+
+  useEffect(() => {
+    if (!createOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!createRef.current?.contains(event.target as Node)) setCreateOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [createOpen]);
 
   return (
     <header className="flex h-14 items-center gap-[var(--gap-lg)] border-b border-[var(--line-hairline)] bg-[var(--bg-raised)] px-[var(--space-4)]">
@@ -33,9 +44,56 @@ export function TopBar() {
       <CommandK />
 
       <div className="ml-auto flex items-center gap-1.5">
-        <Button variant="primary" size="sm" onClick={() => router.push('/arrivals?create=1')}>
-          + Create
-        </Button>
+        <div ref={createRef} className="relative">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setCreateOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={createOpen}
+          >
+            + Reservation <ChevronDown className="size-3.5" />
+          </Button>
+          {createOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-[calc(100%+8px)] z-[var(--z-overlay)] w-[230px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line-hairline)] bg-[var(--bg-surface)] p-1.5 shadow-[var(--shadow-e4)]"
+            >
+              <button
+                role="menuitem"
+                onClick={() => {
+                  openReservationCreate('reservation');
+                  setCreateOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-2 text-left text-[13px] text-[var(--ink-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--ink-primary)]"
+              >
+                <CalendarPlus className="size-4 text-[var(--ink-accent)]" />
+                <span>
+                  <span className="block font-medium text-[var(--ink-primary)]">Reservation</span>
+                  <span className="block text-[11.5px] text-[var(--ink-tertiary)]">
+                    Check-in and check-out dates
+                  </span>
+                </span>
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  openReservationCreate('walk_in');
+                  setCreateOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-2 text-left text-[13px] text-[var(--ink-secondary)] hover:bg-[var(--bg-sunken)] hover:text-[var(--ink-primary)]"
+              >
+                <LogIn className="size-4 text-[var(--ink-accent)]" />
+                <span>
+                  <span className="block font-medium text-[var(--ink-primary)]">Walk-in</span>
+                  <span className="block text-[11.5px] text-[var(--ink-tertiary)]">
+                    Checkout date and room numbers
+                  </span>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={cycleDensity}
           aria-label="Cycle density"

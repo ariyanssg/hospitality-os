@@ -238,6 +238,10 @@
             "minimum": 0,
             "default": 0
           },
+          "groupBlockId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "guarantee": {
             "type": "object",
             "properties": {
@@ -282,6 +286,188 @@
           "departureDate",
           "roomTypeId",
           "ratePlanId"
+        ]
+      },
+      "RegistrationCard": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "guestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "signed",
+              "voided"
+            ]
+          },
+          "termsVersion": {
+            "type": "string"
+          },
+          "signatureHash": {
+            "type": "string"
+          },
+          "signerName": {
+            "type": "string"
+          },
+          "signedAt": {
+            "type": "string"
+          },
+          "consent": {
+            "type": "object",
+            "properties": {
+              "marketing": {
+                "type": "boolean"
+              },
+              "privacyPolicyAccepted": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "reservationId",
+          "guestId",
+          "status",
+          "termsVersion",
+          "signatureHash",
+          "signerName",
+          "signedAt",
+          "consent"
+        ]
+      },
+      "KeyCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "requested",
+              "encoded",
+              "failed",
+              "voided"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "keyCount": {
+            "type": "integer"
+          },
+          "encodedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "encoderRef": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "reservationId",
+          "roomId",
+          "status",
+          "provider",
+          "keyCount",
+          "encodedAt",
+          "expiresAt",
+          "encoderRef"
+        ]
+      },
+      "IdDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "guestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "passport",
+              "national_id",
+              "drivers_license",
+              "residence_permit",
+              "other"
+            ]
+          },
+          "issuingCountry": {
+            "type": "string",
+            "nullable": true
+          },
+          "documentHash": {
+            "type": "string"
+          },
+          "artifactRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiryDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "verificationStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "verified",
+              "rejected"
+            ]
+          },
+          "verifiedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reservationId",
+          "guestId",
+          "documentType",
+          "issuingCountry",
+          "documentHash",
+          "artifactRef",
+          "expiryDate",
+          "verificationStatus",
+          "verifiedAt"
         ]
       },
       "Reservation": {
@@ -368,6 +554,21 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
+          },
+          "registrationCard": {
+            "$ref": "#/components/schemas/RegistrationCard"
+          },
+          "keyCards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyCard"
+            }
+          },
+          "idDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdDocument"
+            }
           }
         },
         "required": [
@@ -385,7 +586,152 @@
           "total",
           "currency",
           "nights",
-          "folioId"
+          "folioId",
+          "registrationCard",
+          "keyCards",
+          "idDocuments"
+        ]
+      },
+      "SignRegistrationCard": {
+        "type": "object",
+        "properties": {
+          "signerName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "signatureHash": {
+            "type": "string",
+            "minLength": 16
+          },
+          "termsVersion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "consent": {
+            "type": "object",
+            "properties": {
+              "marketing": {
+                "type": "boolean"
+              },
+              "privacyPolicyAccepted": {
+                "type": "boolean"
+              }
+            },
+            "default": {}
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "device": {
+                "type": "string"
+              },
+              "ipAddress": {
+                "type": "string"
+              },
+              "userAgent": {
+                "type": "string"
+              }
+            },
+            "default": {}
+          }
+        },
+        "required": [
+          "signerName",
+          "signatureHash",
+          "termsVersion"
+        ]
+      },
+      "IssueKeyCard": {
+        "type": "object",
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "default": "manual"
+          },
+          "keyCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1
+          },
+          "encoderRef": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "markEncoded": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "VerifyIdDocument": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "passport",
+              "national_id",
+              "drivers_license",
+              "residence_permit",
+              "other"
+            ]
+          },
+          "issuingCountry": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "documentHash": {
+            "type": "string",
+            "minLength": 16
+          },
+          "artifactRef": {
+            "type": "string"
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "verificationStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "verified",
+              "rejected"
+            ],
+            "default": "verified"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "scanner": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "mismatchReason": {
+                "type": "string"
+              }
+            },
+            "default": {}
+          }
+        },
+        "required": [
+          "documentType",
+          "documentHash"
         ]
       },
       "ArrivalRow": {
@@ -447,6 +793,22 @@
               "inspected"
             ]
           },
+          "roomQueued": {
+            "type": "boolean"
+          },
+          "queueTaskId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "queueTaskStatus": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "pending",
+              "in_progress"
+            ]
+          },
           "channel": {
             "type": "string",
             "nullable": true
@@ -471,6 +833,9 @@
           "roomId",
           "roomNumber",
           "roomHkStatus",
+          "roomQueued",
+          "queueTaskId",
+          "queueTaskStatus",
           "channel",
           "vipTier"
         ]
@@ -610,6 +975,142 @@
           "method",
           "amount"
         ]
+      },
+      "PaymentIntent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "folioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "card",
+              "cash",
+              "bank_transfer",
+              "ar_transfer",
+              "voucher",
+              "deposit"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "requires_authorization",
+              "authorized",
+              "captured",
+              "voided",
+              "failed"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "capturedAmount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "pspProvider": {
+            "type": "string"
+          },
+          "providerIntentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerAuthorizationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "capturedPaymentId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "authorizedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "capturedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "voidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "folioId",
+          "method",
+          "status",
+          "amount",
+          "capturedAmount",
+          "pspProvider",
+          "providerIntentId",
+          "providerAuthorizationId",
+          "capturedPaymentId",
+          "authorizedAt",
+          "capturedAt",
+          "voidedAt",
+          "failureReason"
+        ]
+      },
+      "AuthorizePayment": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "pspToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pspProvider": {
+            "type": "string",
+            "minLength": 1,
+            "default": "manual"
+          },
+          "providerIntentId": {
+            "type": "string"
+          },
+          "providerAuthorizationId": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "default": {}
+          }
+        },
+        "required": [
+          "amount",
+          "pspToken"
+        ]
+      },
+      "CapturePaymentIntent": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
       },
       "Refund": {
         "type": "object",
@@ -1051,6 +1552,10 @@
             "type": "string",
             "nullable": true
           },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "roomTypeCode": {
             "type": "string"
           },
@@ -1100,10 +1605,512 @@
           "roomId",
           "number",
           "floor",
+          "roomTypeId",
           "roomTypeCode",
           "hkStatus",
           "occupancy",
           "stays"
+        ]
+      },
+      "AvailableRoom": {
+        "type": "object",
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomTypeCode": {
+            "type": "string"
+          },
+          "roomTypeName": {
+            "type": "string"
+          },
+          "hkStatus": {
+            "type": "string",
+            "enum": [
+              "dirty",
+              "clean",
+              "inspected"
+            ]
+          },
+          "occupancy": {
+            "type": "string",
+            "enum": [
+              "vacant",
+              "occupied"
+            ]
+          }
+        },
+        "required": [
+          "roomId",
+          "number",
+          "floor",
+          "roomTypeId",
+          "roomTypeCode",
+          "roomTypeName",
+          "hkStatus",
+          "occupancy"
+        ]
+      },
+      "CreateGroupBlock": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "cutoffDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "contactEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "billingInstructions": {
+            "type": "object",
+            "properties": {
+              "roomAndTaxToMaster": {
+                "type": "boolean",
+                "default": false
+              },
+              "incidentalsToGuest": {
+                "type": "boolean",
+                "default": true
+              }
+            },
+            "default": {}
+          },
+          "inventory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "roomTypeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "blocked": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "rate": {
+                  "$ref": "#/components/schemas/Money"
+                }
+              },
+              "required": [
+                "roomTypeId",
+                "blocked"
+              ]
+            },
+            "minItems": 1
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "arrivalDate",
+          "departureDate",
+          "inventory"
+        ]
+      },
+      "PickupGroupBlock": {
+        "type": "object",
+        "properties": {
+          "guest": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "firstName": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "lastName": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "phone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "firstName",
+                  "lastName"
+                ]
+              }
+            ]
+          },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ratePlanId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "adults": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          },
+          "children": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "guarantee": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "hold",
+                  "card_token",
+                  "deposit",
+                  "prepaid"
+                ]
+              },
+              "token": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "guest",
+          "roomTypeId",
+          "ratePlanId"
+        ]
+      },
+      "QueueRoom": {
+        "type": "object",
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "RoomingListImportRow": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PickupGroupBlock"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "externalRef": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ImportRoomingList": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoomingListImportRow"
+            },
+            "minItems": 1,
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "rows"
+        ]
+      },
+      "RoomingListImportResult": {
+        "type": "object",
+        "properties": {
+          "groupBlockId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rowNumber": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "externalRef": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "reservation": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              },
+              "required": [
+                "rowNumber",
+                "externalRef",
+                "reservation"
+              ]
+            }
+          }
+        },
+        "required": [
+          "groupBlockId",
+          "created"
+        ]
+      },
+      "GroupBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "tentative",
+              "definite",
+              "released"
+            ]
+          },
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "cutoffDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "contactName": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "billingInstructions": {
+            "type": "object",
+            "properties": {
+              "roomAndTaxToMaster": {
+                "type": "boolean"
+              },
+              "incidentalsToGuest": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "roomAndTaxToMaster",
+              "incidentalsToGuest"
+            ]
+          },
+          "masterFolioId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "inventory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "roomTypeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "roomTypeCode": {
+                  "type": "string"
+                },
+                "stayDate": {
+                  "type": "string",
+                  "format": "date",
+                  "example": "2026-07-14"
+                },
+                "blocked": {
+                  "type": "integer"
+                },
+                "pickedUp": {
+                  "type": "integer"
+                },
+                "rate": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Money"
+                    },
+                    {
+                      "nullable": true
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "roomTypeId",
+                "roomTypeCode",
+                "stayDate",
+                "blocked",
+                "pickedUp",
+                "rate"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "status",
+          "arrivalDate",
+          "departureDate",
+          "cutoffDate",
+          "contactName",
+          "contactEmail",
+          "billingInstructions",
+          "masterFolioId",
+          "notes",
+          "inventory"
+        ]
+      },
+      "GroupBlockListRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "tentative",
+              "definite",
+              "released"
+            ]
+          },
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "cutoffDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "roomsBlocked": {
+            "type": "integer"
+          },
+          "roomsPickedUp": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "status",
+          "arrivalDate",
+          "departureDate",
+          "cutoffDate",
+          "roomsBlocked",
+          "roomsPickedUp"
         ]
       },
       "TransferPosting": {
@@ -1558,6 +2565,61 @@
         "required": [
           "fromDate",
           "toDate"
+        ]
+      },
+      "RoomBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomNumber": {
+            "type": "string"
+          },
+          "roomTypeCode": {
+            "type": "string"
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "out_of_order",
+              "out_of_service"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "roomId",
+          "roomNumber",
+          "roomTypeCode",
+          "fromDate",
+          "toDate",
+          "kind",
+          "reason",
+          "createdAt"
         ]
       },
       "MaintenanceTicket": {
@@ -2852,6 +3914,360 @@
           "completedAt"
         ]
       },
+      "WebhookEndpoint": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propertyId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "eventTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "reservation.created",
+                "reservation.modified",
+                "reservation.cancelled",
+                "reservation.checked_in",
+                "reservation.checked_out",
+                "reservation.no_show",
+                "reservation.reinstated",
+                "reservation.room_queued",
+                "room.assigned",
+                "room.moved",
+                "room.status_changed",
+                "room.out_of_order_set",
+                "room.out_of_order_cleared",
+                "housekeeping.task_created",
+                "housekeeping.task_completed",
+                "maintenance.ticket_created",
+                "maintenance.ticket_closed",
+                "availability.changed",
+                "rate.price_changed",
+                "folio.charge_posted",
+                "folio.payment_recorded",
+                "folio.refunded",
+                "folio.closed",
+                "folio.transferred",
+                "payment.authorized",
+                "deposit.recorded",
+                "deposit.applied",
+                "cashier.session_opened",
+                "cashier.session_closed",
+                "pos.check_opened",
+                "pos.item_added",
+                "pos.check_fired",
+                "pos.item_ready",
+                "pos.check_closed",
+                "pos.check_voided",
+                "pos.shift_closed",
+                "offline.op_queued",
+                "booking.session_started",
+                "booking.session_confirmed",
+                "booking.session_cancelled",
+                "message.sent",
+                "gl.journal_posted",
+                "nightaudit.completed",
+                "guest.profile_merged",
+                "channel.reservation_received",
+                "group.block_created",
+                "group.pickup",
+                "invoice.issued",
+                "invoice.paid",
+                "employee.shift_started",
+                "permission.changed"
+              ]
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "failureCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastDeliveredAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lastFailedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "disabledAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "propertyId",
+          "name",
+          "url",
+          "eventTypes",
+          "status",
+          "failureCount",
+          "lastDeliveredAt",
+          "lastFailedAt",
+          "disabledAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateWebhookEndpoint": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "propertyId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "eventTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "reservation.created",
+                "reservation.modified",
+                "reservation.cancelled",
+                "reservation.checked_in",
+                "reservation.checked_out",
+                "reservation.no_show",
+                "reservation.reinstated",
+                "reservation.room_queued",
+                "room.assigned",
+                "room.moved",
+                "room.status_changed",
+                "room.out_of_order_set",
+                "room.out_of_order_cleared",
+                "housekeeping.task_created",
+                "housekeeping.task_completed",
+                "maintenance.ticket_created",
+                "maintenance.ticket_closed",
+                "availability.changed",
+                "rate.price_changed",
+                "folio.charge_posted",
+                "folio.payment_recorded",
+                "folio.refunded",
+                "folio.closed",
+                "folio.transferred",
+                "payment.authorized",
+                "deposit.recorded",
+                "deposit.applied",
+                "cashier.session_opened",
+                "cashier.session_closed",
+                "pos.check_opened",
+                "pos.item_added",
+                "pos.check_fired",
+                "pos.item_ready",
+                "pos.check_closed",
+                "pos.check_voided",
+                "pos.shift_closed",
+                "offline.op_queued",
+                "booking.session_started",
+                "booking.session_confirmed",
+                "booking.session_cancelled",
+                "message.sent",
+                "gl.journal_posted",
+                "nightaudit.completed",
+                "guest.profile_merged",
+                "channel.reservation_received",
+                "group.block_created",
+                "group.pickup",
+                "invoice.issued",
+                "invoice.paid",
+                "employee.shift_started",
+                "permission.changed"
+              ]
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "name",
+          "url",
+          "eventTypes"
+        ]
+      },
+      "WebhookSecret": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "$ref": "#/components/schemas/WebhookEndpoint"
+          },
+          "secret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "secret"
+        ]
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propertyId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "endpointId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "reservation.created",
+              "reservation.modified",
+              "reservation.cancelled",
+              "reservation.checked_in",
+              "reservation.checked_out",
+              "reservation.no_show",
+              "reservation.reinstated",
+              "reservation.room_queued",
+              "room.assigned",
+              "room.moved",
+              "room.status_changed",
+              "room.out_of_order_set",
+              "room.out_of_order_cleared",
+              "housekeeping.task_created",
+              "housekeeping.task_completed",
+              "maintenance.ticket_created",
+              "maintenance.ticket_closed",
+              "availability.changed",
+              "rate.price_changed",
+              "folio.charge_posted",
+              "folio.payment_recorded",
+              "folio.refunded",
+              "folio.closed",
+              "folio.transferred",
+              "payment.authorized",
+              "deposit.recorded",
+              "deposit.applied",
+              "cashier.session_opened",
+              "cashier.session_closed",
+              "pos.check_opened",
+              "pos.item_added",
+              "pos.check_fired",
+              "pos.item_ready",
+              "pos.check_closed",
+              "pos.check_voided",
+              "pos.shift_closed",
+              "offline.op_queued",
+              "booking.session_started",
+              "booking.session_confirmed",
+              "booking.session_cancelled",
+              "message.sent",
+              "gl.journal_posted",
+              "nightaudit.completed",
+              "guest.profile_merged",
+              "channel.reservation_received",
+              "group.block_created",
+              "group.pickup",
+              "invoice.issued",
+              "invoice.paid",
+              "employee.shift_started",
+              "permission.changed"
+            ]
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "delivered",
+              "failed",
+              "dead"
+            ]
+          },
+          "statusCode": {
+            "type": "integer",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deliveredAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "propertyId",
+          "endpointId",
+          "eventId",
+          "eventType",
+          "attempt",
+          "status",
+          "statusCode",
+          "error",
+          "nextAttemptAt",
+          "deliveredAt",
+          "createdAt"
+        ]
+      },
       "NightAuditRun": {
         "type": "object",
         "properties": {
@@ -3169,6 +4585,236 @@
         }
       }
     },
+    "/reservations/{id}/registration-card": {
+      "post": {
+        "summary": "Capture a signed registration card for check-in",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignRegistrationCard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations/{id}/key-cards": {
+      "post": {
+        "summary": "Request or record key-card/mobile-key issuance for a reservation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueKeyCard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations/{id}/id-documents": {
+      "post": {
+        "summary": "Record minimized ID document verification evidence for check-in",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyIdDocument"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations/{id}/queue-room": {
+      "post": {
+        "summary": "Queue an early arrival for room readiness and bump housekeeping priority",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueRoom"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reservations/{id}/check-in": {
       "post": {
         "summary": "Reservation action: check-in",
@@ -3181,6 +4827,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3192,6 +4846,19 @@
                   "roomId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "requireRegistrationCard": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "registrationCard": {
+                    "$ref": "#/components/schemas/SignRegistrationCard"
+                  },
+                  "keyCard": {
+                    "$ref": "#/components/schemas/IssueKeyCard"
+                  },
+                  "idDocument": {
+                    "$ref": "#/components/schemas/VerifyIdDocument"
                   }
                 }
               }
@@ -3234,6 +4901,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3287,6 +4962,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3343,6 +5026,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3390,6 +5081,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3408,6 +5107,126 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Folio"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/folios/{id}/payment-intents": {
+      "post": {
+        "summary": "Authorize a PSP-tokenized card payment intent for a folio",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizePayment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment intent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntent"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/intents/{id}/capture": {
+      "post": {
+        "summary": "Capture an authorized payment intent and post it to the folio ledger",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapturePaymentIntent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Folio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Folio"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3458,6 +5277,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3505,6 +5332,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3557,6 +5392,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3609,6 +5452,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3700,6 +5551,256 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group-blocks": {
+      "get": {
+        "summary": "List group blocks with pickup totals",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group blocks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupBlockListRow"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a group block and hold blocked inventory",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGroupBlock"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Group block",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupBlock"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group-blocks/{id}": {
+      "get": {
+        "summary": "Get group block inventory and routing instructions",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group block",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupBlock"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group-blocks/{id}/pickup": {
+      "post": {
+        "summary": "Pick up one room from a group block into a linked reservation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PickupGroupBlock"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/group-blocks/{id}/rooming-list": {
+      "post": {
+        "summary": "Import a rooming list and pick up reservations from a group block",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRoomingList"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Imported rooming list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomingListImportResult"
                 }
               }
             }
@@ -3830,9 +5931,79 @@
         }
       }
     },
+    "/front-desk/available-rooms": {
+      "get": {
+        "summary": "Date-aware available room numbers for walk-ins and room assignment",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "roomTypeId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available rooms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AvailableRoom"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/folios": {
       "post": {
         "summary": "Create an additional folio for a reservation (splits/routing)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3868,6 +6039,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3906,6 +6085,25 @@
     "/cashier-sessions": {
       "post": {
         "summary": "Open a cashier session",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3941,6 +6139,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3978,6 +6184,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4090,6 +6304,16 @@
       },
       "post": {
         "summary": "Create a housekeeping task",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4125,6 +6349,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "responses": {
@@ -4163,6 +6395,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "responses": {
@@ -4201,6 +6441,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "responses": {
@@ -4227,6 +6475,37 @@
         }
       }
     },
+    "/rooms/out-of-service": {
+      "get": {
+        "summary": "List active and upcoming out-of-order/out-of-service room blocks",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Room blocks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoomBlock"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rooms/{id}/status": {
       "post": {
         "summary": "Update room housekeeping status (dirty → clean → inspected)",
@@ -4239,6 +6518,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4276,6 +6563,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4352,6 +6647,25 @@
       },
       "post": {
         "summary": "Report a maintenance ticket",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4476,6 +6790,23 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4622,6 +6953,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4721,6 +7060,14 @@
             "required": true,
             "name": "X-Property-Id",
             "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4746,6 +7093,34 @@
         }
       }
     },
+    "/pos/checks/{id}": {
+      "get": {
+        "summary": "Get a POS check",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/pos/checks/{id}/items": {
       "post": {
         "summary": "Add an item to a POS check",
@@ -4758,6 +7133,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4795,6 +7178,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "responses": {
@@ -4823,6 +7214,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4879,6 +7278,42 @@
         }
       }
     },
+    "/pos/kds/items/{id}/ready": {
+      "post": {
+        "summary": "Mark a KDS item ready",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/pos/shifts": {
       "post": {
         "summary": "Open a POS shift",
@@ -4890,6 +7325,14 @@
             },
             "required": true,
             "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
             "in": "header"
           }
         ],
@@ -4928,6 +7371,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -4964,6 +7415,14 @@
             },
             "required": true,
             "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
             "in": "header"
           }
         ],
@@ -5002,6 +7461,14 @@
             "required": true,
             "name": "X-Property-Id",
             "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -5015,6 +7482,34 @@
         },
         "responses": {
           "201": {
+            "description": "Booking session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/booking-sessions/{id}": {
+      "get": {
+        "summary": "Get a booking-engine shopping session",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Booking session",
             "content": {
               "application/json": {
@@ -5072,6 +7567,42 @@
         }
       }
     },
+    "/public/booking-sessions/{id}/cancel": {
+      "post": {
+        "summary": "Cancel an unconfirmed booking session",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/messages/send": {
       "post": {
         "summary": "Send a transactional guest message and attach it to the inbox",
@@ -5083,6 +7614,14 @@
             },
             "required": true,
             "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
             "in": "header"
           }
         ],
@@ -5152,6 +7691,14 @@
             "required": true,
             "name": "X-Property-Id",
             "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -5189,6 +7736,14 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -5214,6 +7769,116 @@
         }
       }
     },
+    "/webhooks/endpoints": {
+      "get": {
+        "summary": "List tenant webhook endpoints",
+        "responses": {
+          "200": {
+            "description": "Webhook endpoints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookEndpoint"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a signed webhook endpoint subscription",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookEndpoint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook endpoint and one-time secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSecret"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/endpoints/{id}/disable": {
+      "post": {
+        "summary": "Disable a webhook endpoint",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpoint"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries/{id}/redeliver": {
+      "post": {
+        "summary": "Queue manual webhook redelivery",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Queued delivery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDelivery"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/night-audit/run": {
       "post": {
         "summary": "Run the night audit (roll business date, post room+tax, generate daily journal)",
@@ -5225,6 +7890,14 @@
             },
             "required": true,
             "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
             "in": "header"
           }
         ],

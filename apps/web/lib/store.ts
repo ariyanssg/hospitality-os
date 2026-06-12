@@ -59,17 +59,25 @@ export const useUiPrefs = create<UiPrefsState>()(
 );
 
 // ── Cross-page desk intents ──
+export type ReservationCreateMode = 'reservation' | 'walk_in';
+
 interface DeskIntentState {
   /** Reservation queued for check-in by ⌘K — the arrivals board opens its drawer and clears it. */
   checkinId: string | null;
+  reservationCreateMode: ReservationCreateMode | null;
   requestCheckin: (id: string) => void;
   clearCheckin: () => void;
+  openReservationCreate: (mode: ReservationCreateMode) => void;
+  closeReservationCreate: () => void;
 }
 
 export const useDeskIntent = create<DeskIntentState>()((set) => ({
   checkinId: null,
+  reservationCreateMode: null,
   requestCheckin: (id) => set({ checkinId: id }),
   clearCheckin: () => set({ checkinId: null }),
+  openReservationCreate: (mode) => set({ reservationCreateMode: mode }),
+  closeReservationCreate: () => set({ reservationCreateMode: null }),
 }));
 
 // ── Toasts ──

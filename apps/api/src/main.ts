@@ -28,7 +28,15 @@ export async function createApp(): Promise<NestFastifyApplication> {
     // Bind the ALS holder synchronously (before any await) so it propagates to the handler, then
     // populate it once identity is resolved.
     beginContextScope();
-    const ctx = await contextService.build(req.headers as Record<string, string | string[] | undefined>);
+    const headers = { ...(req.headers as Record<string, string | string[] | undefined>) };
+    const query = req.query as { token?: string; propertyId?: string } | undefined;
+    if (req.url.startsWith('/v1/realtime/') && query?.token && !headers.authorization) {
+      headers.authorization = `Bearer ${query.token}`;
+    }
+    if (req.url.startsWith('/v1/realtime/') && query?.propertyId && !headers['x-property-id']) {
+      headers['x-property-id'] = query.propertyId;
+    }
+    const ctx = await contextService.build(headers);
     if (ctx) setRequestContext(ctx);
   });
 

@@ -80,6 +80,8 @@ export default function DeparturesPage() {
                 <tr
                   key={d.id}
                   tabIndex={0}
+                  data-testid="golden-checkout-row"
+                  data-express-ready={due ? 'false' : 'true'}
                   onClick={() => setOpen(d)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') setOpen(d);

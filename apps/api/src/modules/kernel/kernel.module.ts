@@ -7,11 +7,15 @@ import { BusinessDateService } from './business-date/business-date.service';
 import { ContextService } from './context/context.service';
 import { HealthController } from './controllers/health.controller';
 import { MeController } from './controllers/me.controller';
+import { RealtimeController } from './controllers/realtime.controller';
 import { DbService } from './db/db.service';
 import { UnitOfWork } from './db/unit-of-work';
 import { ProblemFilter } from './errors/problem.filter';
 import { PermissionGuard } from './permissions/permission.guard';
 import { PermissionService } from './permissions/permission.service';
+import { RealtimeGateway } from './realtime/realtime.gateway';
+import { WebhooksController } from './webhooks/webhooks.controller';
+import { WebhooksService } from './webhooks/webhooks.service';
 
 /**
  * The platform kernel: auth, tenancy, permissions, events/outbox, audit, business dates.
@@ -20,7 +24,13 @@ import { PermissionService } from './permissions/permission.service';
  */
 @Global()
 @Module({
-  controllers: [HealthController, MeController, AuthController],
+  controllers: [
+    HealthController,
+    MeController,
+    AuthController,
+    RealtimeController,
+    WebhooksController,
+  ],
   providers: [
     DbService,
     UnitOfWork,
@@ -29,6 +39,8 @@ import { PermissionService } from './permissions/permission.service';
     PermissionService,
     ContextService,
     BusinessDateService,
+    RealtimeGateway,
+    WebhooksService,
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_FILTER, useClass: ProblemFilter },
   ],
@@ -40,6 +52,7 @@ import { PermissionService } from './permissions/permission.service';
     PermissionService,
     ContextService,
     BusinessDateService,
+    WebhooksService,
   ],
 })
 export class KernelModule {}

@@ -7,6 +7,7 @@ import { TopBar } from '@/components/desk/top-bar';
 import { NavTabs } from '@/components/desk/nav-tabs';
 import { LivePulseBar } from '@/components/desk/live-pulse-bar';
 import { ToastViewport } from '@/components/desk/toast';
+import { ReservationCreateDrawer } from '@/components/desk/reservation-create-drawer';
 
 /**
  * The Desk shell (doc 18 §2, front-desk concept): top bar → rail → (pulse bar + workspace).
@@ -34,6 +35,7 @@ export default function DeskLayout({ children }: { children: React.ReactNode }) 
             <div className="flex-1 overflow-auto p-[var(--space-6)]">{children}</div>
           </main>
         </div>
+        <ReservationCreateDrawer />
         <ToastViewport />
       </div>
     </DensityProvider>

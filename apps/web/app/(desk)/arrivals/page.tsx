@@ -57,16 +57,14 @@ export default function ArrivalsPage() {
     let r = data ?? [];
     if (view === 'Unassigned') r = r.filter((a) => !a.roomAssigned);
     else if (view === 'VIP') r = r.filter((a) => a.vipTier);
-    else if (view === 'In queue')
-      r = r.filter(
-        (a) => a.roomAssigned && a.roomHkStatus !== 'inspected' && a.status !== 'checked_in',
-      );
+    else if (view === 'In queue') r = r.filter((a) => a.roomQueued);
     return [...r].sort(
       (x, y) => readinessScore(x) - readinessScore(y) || x.guestName.localeCompare(y.guestName),
     );
   }, [data, view]);
 
   const unassigned = data?.filter((a) => !a.roomAssigned).length ?? 0;
+  const queued = data?.filter((a) => a.roomQueued).length ?? 0;
   const allChecked = rows.length > 0 && rows.every((a) => checked.has(a.id));
 
   const toggle = (ids: string[], replace = false) =>
@@ -109,6 +107,7 @@ export default function ArrivalsPage() {
             >
               {v}
               {v === 'Unassigned' && unassigned > 0 && <Badge tone="caution">{unassigned}</Badge>}
+              {v === 'In queue' && queued > 0 && <Badge tone="caution">{queued}</Badge>}
             </button>
           ))}
         </div>
@@ -160,6 +159,8 @@ export default function ArrivalsPage() {
               <tr
                 key={a.id}
                 tabIndex={0}
+                data-testid="golden-checkin-row"
+                data-arrival-status={a.status}
                 onClick={() => setOpen(a.id)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') setOpen(a.id);
@@ -196,6 +197,11 @@ export default function ArrivalsPage() {
                 <td className={TD + ' font-mono text-[12px] text-[var(--ink-tertiary)]'}>
                   {nightsOf(a)}N · {a.roomTypeCode}
                   {a.roomNumber ? ` · ${a.roomNumber}` : ''}
+                  {a.roomQueued && (
+                    <Badge tone="caution" className="ml-2">
+                      Queue
+                    </Badge>
+                  )}
                 </td>
                 <td className={TD}>
                   <ReadyChip arrival={a} />
@@ -219,6 +225,7 @@ export default function ArrivalsPage() {
               setOpen(startable.id);
               setChecked(new Set());
             }}
+            data-testid="golden-checkin-start-selected"
           >
             <CornerDownLeft className="size-[15px]" /> Start check-in
           </TrayButton>

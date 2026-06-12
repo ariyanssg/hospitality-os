@@ -10,7 +10,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { reservationStatus } from './enums';
+import { groupBlockStatus, reservationStatus } from './enums';
 import { auditColumns, createdAt, money, pk, propertyId, tenantId } from './_shared';
 
 /* CRM guests (minimal Phase-0 slice; full dedup/merge in CRM module). PII encryption: doc 09. */
@@ -24,7 +24,9 @@ export const guests = pgTable(
     email: text('email'),
     phone: text('phone'),
     vipTier: text('vip_tier'),
-    traits: jsonb('traits').notNull().default(sql`'[]'::jsonb`),
+    traits: jsonb('traits')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     nationality: text('nationality'),
     ...auditColumns(),
   },
@@ -59,8 +61,12 @@ export const reservations = pgTable(
     /** Snapshot pricing summary; per-night truth lives in reservation_nights. */
     totalAmount: money('total_amount').notNull().default('0'),
     currency: text('currency').notNull().default('USD'),
-    source: jsonb('source').notNull().default(sql`'{}'::jsonb`),
-    guarantee: jsonb('guarantee').notNull().default(sql`'{}'::jsonb`),
+    source: jsonb('source')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    guarantee: jsonb('guarantee')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     /** Tentative-hold TTL — released by night audit / sweeper when passed. */
     holdExpiresAt: timestamp('hold_expires_at', { withTimezone: true }),
     notes: text('notes'),
@@ -156,4 +162,142 @@ export const reservationStatusLog = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('reservation_status_log_res').on(t.tenantId, t.reservationId)],
+);
+
+export const registrationCards = pgTable(
+  'registration_cards',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyId(),
+    reservationId: uuid('reservation_id')
+      .notNull()
+      .references(() => reservations.id, { onDelete: 'cascade' }),
+    guestId: uuid('guest_id').references(() => guests.id),
+    status: text('status').notNull().default('signed'),
+    termsVersion: text('terms_version').notNull(),
+    signatureHash: text('signature_hash').notNull(),
+    signerName: text('signer_name').notNull(),
+    signedAt: timestamp('signed_at', { withTimezone: true }).notNull().defaultNow(),
+    consent: jsonb('consent')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    ...auditColumns(),
+  },
+  (t) => [
+    index('registration_cards_res').on(t.tenantId, t.propertyId, t.reservationId),
+    uniqueIndex('registration_cards_latest_signed')
+      .on(t.tenantId, t.reservationId)
+      .where(sql`status = 'signed'`),
+  ],
+);
+
+export const keyCards = pgTable(
+  'key_cards',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyId(),
+    reservationId: uuid('reservation_id')
+      .notNull()
+      .references(() => reservations.id, { onDelete: 'cascade' }),
+    roomId: uuid('room_id').notNull(),
+    status: text('status').notNull().default('requested'),
+    provider: text('provider').notNull().default('manual'),
+    keyCount: integer('key_count').notNull().default(1),
+    encodedAt: timestamp('encoded_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    encoderRef: text('encoder_ref'),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    ...auditColumns(),
+  },
+  (t) => [
+    index('key_cards_res').on(t.tenantId, t.propertyId, t.reservationId),
+    index('key_cards_room').on(t.tenantId, t.propertyId, t.roomId, t.status),
+  ],
+);
+
+export const idDocuments = pgTable(
+  'id_documents',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyId(),
+    reservationId: uuid('reservation_id')
+      .notNull()
+      .references(() => reservations.id, { onDelete: 'cascade' }),
+    guestId: uuid('guest_id')
+      .notNull()
+      .references(() => guests.id),
+    documentType: text('document_type').notNull(),
+    issuingCountry: text('issuing_country'),
+    documentHash: text('document_hash').notNull(),
+    artifactRef: text('artifact_ref'),
+    expiryDate: date('expiry_date'),
+    verificationStatus: text('verification_status').notNull().default('verified'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    ...auditColumns(),
+  },
+  (t) => [
+    index('id_documents_res').on(t.tenantId, t.propertyId, t.reservationId),
+    index('id_documents_guest').on(t.tenantId, t.guestId),
+  ],
+);
+
+export const groupBlocks = pgTable(
+  'group_blocks',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyId(),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    status: groupBlockStatus('status').notNull().default('tentative'),
+    arrivalDate: date('arrival_date').notNull(),
+    departureDate: date('departure_date').notNull(),
+    cutoffDate: date('cutoff_date'),
+    contactName: text('contact_name'),
+    contactEmail: text('contact_email'),
+    billingInstructions: jsonb('billing_instructions')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    masterFolioId: uuid('master_folio_id'),
+    notes: text('notes'),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex('group_blocks_code').on(t.tenantId, t.propertyId, t.code),
+    index('group_blocks_property_dates').on(t.tenantId, t.propertyId, t.arrivalDate, t.status),
+  ],
+);
+
+export const groupBlockInventory = pgTable(
+  'group_block_inventory',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyId(),
+    groupBlockId: uuid('group_block_id')
+      .notNull()
+      .references(() => groupBlocks.id, { onDelete: 'cascade' }),
+    roomTypeId: uuid('room_type_id').notNull(),
+    stayDate: date('stay_date').notNull(),
+    blocked: integer('blocked').notNull(),
+    pickedUp: integer('picked_up').notNull().default(0),
+    rateAmount: money('rate_amount'),
+    currency: text('currency').notNull().default('USD'),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex('group_block_inventory_unique').on(t.groupBlockId, t.roomTypeId, t.stayDate),
+    index('group_block_inventory_block').on(t.tenantId, t.propertyId, t.groupBlockId),
+  ],
 );

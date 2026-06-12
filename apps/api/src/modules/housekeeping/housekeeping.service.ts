@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import {
   availabilityDays,
   housekeepingTasks,
@@ -18,6 +18,7 @@ import type {
   HkTask,
   MaintenanceTicket,
   OutOfOrderInput,
+  RoomBlock,
 } from '@vela/contracts';
 import {
   AvailabilityConflictError,
@@ -446,6 +447,46 @@ export class HousekeepingService {
       propertyId: room.propertyId,
     });
     return id;
+  }
+
+  async listRoomBlocks(tx: DbTransaction, propertyId: string): Promise<RoomBlock[]> {
+    const ctx = getRequestContext();
+    const businessDate = await this.businessDate.current(tx, propertyId);
+    const rows = await tx
+      .select({
+        id: outOfOrderPeriods.id,
+        roomId: outOfOrderPeriods.roomId,
+        roomNumber: rooms.number,
+        roomTypeCode: roomTypes.code,
+        fromDate: outOfOrderPeriods.fromDate,
+        toDate: outOfOrderPeriods.toDate,
+        kind: outOfOrderPeriods.kind,
+        reason: outOfOrderPeriods.reason,
+        createdAt: outOfOrderPeriods.createdAt,
+      })
+      .from(outOfOrderPeriods)
+      .innerJoin(rooms, eq(rooms.id, outOfOrderPeriods.roomId))
+      .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
+      .where(
+        and(
+          eq(outOfOrderPeriods.tenantId, ctx.tenantId),
+          eq(outOfOrderPeriods.propertyId, propertyId),
+          gt(outOfOrderPeriods.toDate, businessDate),
+        ),
+      )
+      .orderBy(asc(outOfOrderPeriods.fromDate), asc(rooms.number));
+
+    return rows.map((r) => ({
+      id: r.id,
+      roomId: r.roomId,
+      roomNumber: r.roomNumber,
+      roomTypeCode: r.roomTypeCode,
+      fromDate: r.fromDate,
+      toDate: r.toDate,
+      kind: r.kind as RoomBlock['kind'],
+      reason: r.reason,
+      createdAt: r.createdAt.toISOString(),
+    }));
   }
 
   // ── Maintenance ──

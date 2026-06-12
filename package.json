@@ -20,6 +20,7 @@
     "check:rls": "tsx --env-file-if-exists=.env tooling/check-rls/index.ts",
     "check:permissions": "tsx --env-file-if-exists=.env tooling/check-permission-guards/index.ts",
     "check:openapi": "tsx --env-file-if-exists=.env tooling/check-openapi/index.ts",
+    "check:desk-flows": "tsx tooling/check-desk-golden-flows/index.ts",
     "openapi:emit": "tsx tooling/check-openapi/index.ts --write",
     "db:generate": "pnpm --filter @vela/db generate",
     "db:migrate": "tsx --env-file-if-exists=.env packages/db/src/migrate.ts",

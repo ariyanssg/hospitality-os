@@ -79,6 +79,21 @@ export const OutOfOrderSchema = z
   .openapi('OutOfOrder');
 export type OutOfOrderInput = z.infer<typeof OutOfOrderSchema>;
 
+export const RoomBlockSchema = z
+  .object({
+    id: Uuid,
+    roomId: Uuid,
+    roomNumber: z.string(),
+    roomTypeCode: z.string(),
+    fromDate: IsoDate,
+    toDate: IsoDate,
+    kind: z.enum(['out_of_order', 'out_of_service']),
+    reason: z.string().nullable(),
+    createdAt: IsoDateTime,
+  })
+  .openapi('RoomBlock');
+export type RoomBlock = z.infer<typeof RoomBlockSchema>;
+
 export const MaintenanceTicketSchema = z
   .object({
     id: Uuid,

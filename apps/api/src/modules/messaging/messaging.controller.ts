@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   ConversationSchema,
   CreateGdprRequestSchema,
@@ -39,9 +39,11 @@ export class MessagingController {
   send(
     @Ctx() ctx: RequestContext,
     @Body(new ZodValidationPipe(SendMessageSchema)) body: typeof SendMessageSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<Message> {
-    return this.uow.run(async (tx, helpers) => {
-      const id = await this.messaging.send(tx, helpers, requireProperty(ctx), body);
+    const propertyId = requireProperty(ctx);
+    return this.uow.runIdempotent(idempotencyKey, { propertyId, ...body }, async (tx, helpers) => {
+      const id = await this.messaging.send(tx, helpers, propertyId, body);
       return this.messaging.messageDto(tx, id);
     });
   }
@@ -61,9 +63,11 @@ export class MessagingController {
     @Ctx() ctx: RequestContext,
     @Body(new ZodValidationPipe(CreateGdprRequestSchema))
     body: typeof CreateGdprRequestSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<GdprRequest> {
-    return this.uow.run(async (tx, helpers) => {
-      const id = await this.messaging.createGdpr(tx, helpers, requireProperty(ctx), body);
+    const propertyId = requireProperty(ctx);
+    return this.uow.runIdempotent(idempotencyKey, { propertyId, ...body }, async (tx, helpers) => {
+      const id = await this.messaging.createGdpr(tx, helpers, propertyId, body);
       return this.messaging.gdprDto(tx, id);
     });
   }
@@ -74,8 +78,9 @@ export class MessagingController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateGdprRequestSchema))
     body: typeof UpdateGdprRequestSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<GdprRequest> {
-    return this.uow.run(async (tx, helpers) => {
+    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
       await this.messaging.updateGdpr(tx, helpers, id, body);
       return this.messaging.gdprDto(tx, id);
     });

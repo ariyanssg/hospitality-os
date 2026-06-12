@@ -3,6 +3,7 @@ import {
   boolean,
   date,
   index,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -90,7 +91,9 @@ export const folios = pgTable(
   },
   (t) => [
     uniqueIndex('folios_tenant_number').on(t.tenantId, t.propertyId, t.folioNumber),
-    index('folio_open').on(t.tenantId, t.propertyId, t.status).where(sql`status = 'open'`),
+    index('folio_open')
+      .on(t.tenantId, t.propertyId, t.status)
+      .where(sql`status = 'open'`),
     index('folios_reservation').on(t.tenantId, t.reservationId),
   ],
 );
@@ -168,6 +171,41 @@ export const payments = pgTable(
     ...auditColumns(),
   },
   (t) => [index('payments_folio').on(t.tenantId, t.folioId)],
+);
+
+/** PSP authorization/capture intent. Stores tokens/provider references only, never raw card data. */
+export const paymentIntents = pgTable(
+  'payment_intents',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyId(),
+    folioId: uuid('folio_id')
+      .notNull()
+      .references(() => folios.id),
+    method: paymentMethod('method').notNull().default('card'),
+    status: text('status').notNull().default('requires_authorization'),
+    amount: money('amount').notNull(),
+    capturedAmount: money('captured_amount').notNull().default('0'),
+    currency: currency().notNull(),
+    pspProvider: text('psp_provider').notNull().default('manual'),
+    pspToken: text('psp_token').notNull(),
+    providerIntentId: text('provider_intent_id'),
+    providerAuthorizationId: text('provider_authorization_id'),
+    capturedPaymentId: uuid('captured_payment_id'),
+    authorizedAt: timestamp('authorized_at', { withTimezone: true }),
+    capturedAt: timestamp('captured_at', { withTimezone: true }),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    failureReason: text('failure_reason'),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    ...auditColumns(),
+  },
+  (t) => [
+    index('payment_intents_folio').on(t.tenantId, t.propertyId, t.folioId, t.status),
+    index('payment_intents_provider').on(t.tenantId, t.providerIntentId),
+  ],
 );
 
 /** Pre-arrival deposits sit on the deposit ledger (2000) until check-in applies them to the

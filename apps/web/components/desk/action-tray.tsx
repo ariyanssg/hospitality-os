@@ -1,5 +1,5 @@
 'use client';
-import { type ReactNode } from 'react';
+import { type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 /**
@@ -39,11 +39,14 @@ export function ActionTray({
 }
 
 /** A button inside the tray. */
-export function TrayButton({ onClick, children }: { onClick?: () => void; children: ReactNode }) {
+export function TrayButton({
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) {
   return (
     <button
-      onClick={onClick}
       className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 text-[var(--font-size-ui)] hover:bg-[var(--bg-overlay)]"
+      {...props}
     >
       {children}
     </button>

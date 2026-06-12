@@ -3,14 +3,19 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
+  AlarmClock,
+  Ban,
   BedDouble,
   CalendarCheck,
+  CalendarX,
+  ContactRound,
   DoorOpen,
   LayoutGrid,
   MoonStar,
   Receipt,
   Sparkles,
   Users,
+  Wrench,
 } from 'lucide-react';
 import { cn } from '@vela/ui';
 import { useSdk } from '@/lib/sdk';
@@ -20,10 +25,16 @@ const TABS = [
   { href: '/today', label: 'Today', icon: LayoutGrid, badge: null },
   { href: '/arrivals', label: 'Arrivals', icon: CalendarCheck, badge: 'arrivals' },
   { href: '/rack', label: 'Rack', icon: BedDouble, badge: null },
+  { href: '/available', label: 'Available', icon: DoorOpen, badge: null },
+  { href: '/groups', label: 'Groups', icon: ContactRound, badge: null },
   { href: '/inhouse', label: 'In-house', icon: Users, badge: null },
   { href: '/departures', label: 'Departures', icon: DoorOpen, badge: 'departures' },
   { href: '/folios', label: 'Folios', icon: Receipt, badge: null },
   { href: '/housekeeping', label: 'Housekeeping', icon: Sparkles, badge: null },
+  { href: '/maintenance', label: 'Maintenance', icon: Wrench, badge: null },
+  { href: '/out-of-service', label: 'Out of service', icon: Ban, badge: null },
+  { href: '/wake-up-calls', label: 'Wake-up calls', icon: AlarmClock, badge: null },
+  { href: '/no-shows', label: 'No-shows', icon: CalendarX, badge: null },
   { href: '/audit', label: 'Night audit', icon: MoonStar, badge: null },
 ] as const;
 

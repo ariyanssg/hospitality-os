@@ -99,6 +99,76 @@ export class AvailabilityService {
     });
   }
 
+  /** Hold group/allotment inventory against the blocked counter. */
+  async block(tx: DbTransaction, helpers: UowHelpers, win: StayWindow): Promise<void> {
+    const ctx = getRequestContext();
+    const units = win.units ?? 1;
+
+    for (const date of win.dates) {
+      let updated: { stayDate: string }[];
+      try {
+        updated = await tx
+          .update(availabilityDays)
+          .set({ blocked: sql`${availabilityDays.blocked} + ${units}` })
+          .where(
+            and(
+              eq(availabilityDays.tenantId, ctx.tenantId),
+              eq(availabilityDays.propertyId, win.propertyId),
+              eq(availabilityDays.roomTypeId, win.roomTypeId),
+              eq(availabilityDays.stayDate, date),
+            ),
+          )
+          .returning({ stayDate: availabilityDays.stayDate });
+      } catch (e) {
+        if (isCheckViolation(e)) {
+          throw new AvailabilityConflictError(`No blockable units on ${date}.`, [
+            { field: 'roomTypeId', code: 'NO_AVAILABILITY', stayDate: date },
+          ]);
+        }
+        throw e;
+      }
+      if (updated.length === 0) {
+        throw new AvailabilityConflictError(`No inventory configured for ${date}.`, [
+          { field: 'roomTypeId', code: 'NO_AVAILABILITY', stayDate: date },
+        ]);
+      }
+    }
+
+    helpers.emit({
+      type: 'availability.changed',
+      aggregateType: 'availability',
+      aggregateId: win.roomTypeId,
+      propertyId: win.propertyId,
+      data: { roomTypeId: win.roomTypeId, dates: win.dates, blockedDelta: units },
+    });
+  }
+
+  /** Release group/allotment inventory from the blocked counter. */
+  async releaseBlock(tx: DbTransaction, helpers: UowHelpers, win: StayWindow): Promise<void> {
+    const ctx = getRequestContext();
+    const units = win.units ?? 1;
+    for (const date of win.dates) {
+      await tx
+        .update(availabilityDays)
+        .set({ blocked: sql`GREATEST(${availabilityDays.blocked} - ${units}, 0)` })
+        .where(
+          and(
+            eq(availabilityDays.tenantId, ctx.tenantId),
+            eq(availabilityDays.propertyId, win.propertyId),
+            eq(availabilityDays.roomTypeId, win.roomTypeId),
+            eq(availabilityDays.stayDate, date),
+          ),
+        );
+    }
+    helpers.emit({
+      type: 'availability.changed',
+      aggregateType: 'availability',
+      aggregateId: win.roomTypeId,
+      propertyId: win.propertyId,
+      data: { roomTypeId: win.roomTypeId, dates: win.dates, blockedDelta: -units },
+    });
+  }
+
   /** Availability counts per room type across [from, to) — counts only; pricing is the rates module. */
   async counts(
     tx: DbTransaction,
