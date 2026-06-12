@@ -9,7 +9,7 @@ import type {
   CreateReservationInput,
   DepartureRow,
   GroupBlock,
-  GroupBlockListRow,
+  GroupBlockListPage,
   InHouseRow,
   ImportRoomingListInput,
   IssueKeyCardInput,
@@ -17,7 +17,7 @@ import type {
   PickupGroupBlockInput,
   QueueRoomInput,
   Reservation,
-  ReservationListRow,
+  ReservationListPage,
   RoomMoveInput,
   RoomRackRow,
   RoomingListImportResult,
@@ -49,20 +49,22 @@ import type {
   CreateMaintenanceTicketInput,
   HkBoardRoom,
   HkTask,
+  HkTaskPage,
   MaintenanceTicket,
+  MaintenanceTicketPage,
   OutOfOrderInput,
-  RoomBlock,
+  RoomBlockPage,
   RoomStatusUpdateInput,
 } from '../housekeeping';
 import type { PriceGridUpdateInput, RatePlan, RatePriceRow } from '../rates';
 import type { ManagerFlash } from '../reports';
-import type { Guest, GuestProfile, UpdateGuestInput } from '../guests';
+import type { GuestProfile, GuestSearchPage, UpdateGuestInput } from '../guests';
 import type {
   AddPosItemInput,
   BookingSession,
   ClosePosCheckInput,
   ClosePosShiftInput,
-  Conversation,
+  ConversationPage,
   CreateGdprRequestInput,
   GdprRequest,
   Message,
@@ -70,8 +72,10 @@ import type {
   OpenPosCheckInput,
   OpenPosShiftInput,
   PosCheck,
-  PosCheckItem,
+  PosCheckPage,
+  PosKdsItem,
   PosOutlet,
+  PosRoomChargeCandidate,
   PosShift,
   PosTable,
   QueueOfflineOpInput,
@@ -208,9 +212,30 @@ export function createClient(opts: SdkOptions) {
 
     // ── Reservations lifecycle (Phase 1) ──
     listReservations: (
-      query: { status?: string; from?: string; to?: string; q?: string; limit?: number } = {},
+      query: {
+        status?: string;
+        from?: string;
+        to?: string;
+        q?: string;
+        cursor?: string;
+        limit?: number;
+      } = {},
       call?: CallOptions,
-    ) => request<ReservationListRow[]>('GET', '/reservations', undefined, { ...call, query }),
+    ) =>
+      request<ReservationListPage>('GET', '/reservations', undefined, { ...call, query }).then(
+        (page) => page.data,
+      ),
+    listReservationsPage: (
+      query: {
+        status?: string;
+        from?: string;
+        to?: string;
+        q?: string;
+        cursor?: string;
+        limit?: number;
+      } = {},
+      call?: CallOptions,
+    ) => request<ReservationListPage>('GET', '/reservations', undefined, { ...call, query }),
     modifyReservation: (id: string, input: ModifyReservationInput, call?: CallOptions) =>
       request<Reservation>('POST', `/reservations/${id}/modify`, input, call),
     markNoShow: (id: string, body: { reason?: string } = {}, call?: CallOptions) =>
@@ -221,8 +246,12 @@ export function createClient(opts: SdkOptions) {
       request<Reservation>('POST', `/reservations/${id}/room-moves`, input, call),
     walkIn: (input: WalkInInput, call?: CallOptions) =>
       request<Reservation>('POST', '/walk-ins', input, call),
-    groupBlocks: (call?: CallOptions) =>
-      request<GroupBlockListRow[]>('GET', '/group-blocks', undefined, call),
+    groupBlocks: (query: { cursor?: string; limit?: number } = {}, call?: CallOptions) =>
+      request<GroupBlockListPage>('GET', '/group-blocks', undefined, { ...call, query }).then(
+        (page) => page.data,
+      ),
+    groupBlocksPage: (query: { cursor?: string; limit?: number } = {}, call?: CallOptions) =>
+      request<GroupBlockListPage>('GET', '/group-blocks', undefined, { ...call, query }),
     getGroupBlock: (id: string, call?: CallOptions) =>
       request<GroupBlock>('GET', `/group-blocks/${id}`, undefined, call),
     createGroupBlock: (input: CreateGroupBlockInput, call?: CallOptions) =>
@@ -265,8 +294,17 @@ export function createClient(opts: SdkOptions) {
     // ── Housekeeping & maintenance ──
     hkBoard: (call?: CallOptions) =>
       request<HkBoardRoom[]>('GET', '/housekeeping/board', undefined, call),
-    hkTasks: (query: { status?: string; dueDate?: string } = {}, call?: CallOptions) =>
-      request<HkTask[]>('GET', '/housekeeping/tasks', undefined, { ...call, query }),
+    hkTasks: (
+      query: { status?: string; dueDate?: string; cursor?: string; limit?: number } = {},
+      call?: CallOptions,
+    ) =>
+      request<HkTaskPage>('GET', '/housekeeping/tasks', undefined, { ...call, query }).then(
+        (page) => page.data,
+      ),
+    hkTasksPage: (
+      query: { status?: string; dueDate?: string; cursor?: string; limit?: number } = {},
+      call?: CallOptions,
+    ) => request<HkTaskPage>('GET', '/housekeeping/tasks', undefined, { ...call, query }),
     createHkTask: (input: CreateHkTaskInput, call?: CallOptions) =>
       request<HkTask>('POST', '/housekeeping/tasks', input, call),
     hkTaskAction: (id: string, action: 'start' | 'complete' | 'skip', call?: CallOptions) =>
@@ -275,10 +313,26 @@ export function createClient(opts: SdkOptions) {
       request<HkBoardRoom>('POST', `/rooms/${roomId}/status`, input, call),
     setOutOfOrder: (roomId: string, input: OutOfOrderInput, call?: CallOptions) =>
       request<{ id: string }>('POST', `/rooms/${roomId}/out-of-order`, input, call),
-    roomBlocks: (call?: CallOptions) =>
-      request<RoomBlock[]>('GET', '/rooms/out-of-service', undefined, call),
-    maintenanceTickets: (query: { status?: string } = {}, call?: CallOptions) =>
-      request<MaintenanceTicket[]>('GET', '/maintenance/tickets', undefined, { ...call, query }),
+    roomBlocks: (query: { cursor?: string; limit?: number } = {}, call?: CallOptions) =>
+      request<RoomBlockPage>('GET', '/rooms/out-of-service', undefined, {
+        ...call,
+        query,
+      }).then((page) => page.data),
+    roomBlocksPage: (query: { cursor?: string; limit?: number } = {}, call?: CallOptions) =>
+      request<RoomBlockPage>('GET', '/rooms/out-of-service', undefined, { ...call, query }),
+    maintenanceTickets: (
+      query: { status?: string; cursor?: string; limit?: number } = {},
+      call?: CallOptions,
+    ) =>
+      request<MaintenanceTicketPage>('GET', '/maintenance/tickets', undefined, {
+        ...call,
+        query,
+      }).then((page) => page.data),
+    maintenanceTicketsPage: (
+      query: { status?: string; cursor?: string; limit?: number } = {},
+      call?: CallOptions,
+    ) =>
+      request<MaintenanceTicketPage>('GET', '/maintenance/tickets', undefined, { ...call, query }),
     createMaintenanceTicket: (input: CreateMaintenanceTicketInput, call?: CallOptions) =>
       request<MaintenanceTicket>('POST', '/maintenance/tickets', input, call),
     assignMaintenanceTicket: (
@@ -311,8 +365,12 @@ export function createClient(opts: SdkOptions) {
     // ── Reports & guests ──
     managerFlash: (query: { businessDate?: string } = {}, call?: CallOptions) =>
       request<ManagerFlash>('GET', '/reports/manager-flash', undefined, { ...call, query }),
-    searchGuests: (query: { q: string; limit?: number }, call?: CallOptions) =>
-      request<Guest[]>('GET', '/guests', undefined, { ...call, query }),
+    searchGuests: (query: { q: string; cursor?: string; limit?: number }, call?: CallOptions) =>
+      request<GuestSearchPage>('GET', '/guests', undefined, { ...call, query }).then(
+        (page) => page.data,
+      ),
+    searchGuestsPage: (query: { q: string; cursor?: string; limit?: number }, call?: CallOptions) =>
+      request<GuestSearchPage>('GET', '/guests', undefined, { ...call, query }),
     getGuest: (id: string) => request<GuestProfile>('GET', `/guests/${id}`),
     updateGuest: (id: string, input: UpdateGuestInput, call?: CallOptions) =>
       request<GuestProfile>('PATCH', `/guests/${id}`, input, call),
@@ -321,8 +379,34 @@ export function createClient(opts: SdkOptions) {
     posOutlets: (call?: CallOptions) =>
       request<PosOutlet[]>('GET', '/pos/outlets', undefined, call),
     posTables: (outletId: string) => request<PosTable[]>('GET', `/pos/outlets/${outletId}/tables`),
+    posRoomChargeSearch: (query: { q: string; limit?: number }, call?: CallOptions) =>
+      request<PosRoomChargeCandidate[]>('GET', '/pos/room-charge/search', undefined, {
+        ...call,
+        query,
+      }),
     openPosCheck: (input: OpenPosCheckInput, call?: CallOptions) =>
       request<PosCheck>('POST', '/pos/checks', input, call),
+    listPosChecks: (
+      query: {
+        outletId?: string;
+        status?: 'open' | 'fired' | 'closed' | 'voided';
+        cursor?: string;
+        limit?: number;
+      } = {},
+      call?: CallOptions,
+    ) =>
+      request<PosCheckPage>('GET', '/pos/checks', undefined, { ...call, query }).then(
+        (page) => page.data,
+      ),
+    listPosChecksPage: (
+      query: {
+        outletId?: string;
+        status?: 'open' | 'fired' | 'closed' | 'voided';
+        cursor?: string;
+        limit?: number;
+      } = {},
+      call?: CallOptions,
+    ) => request<PosCheckPage>('GET', '/pos/checks', undefined, { ...call, query }),
     getPosCheck: (id: string) => request<PosCheck>('GET', `/pos/checks/${id}`),
     addPosItem: (checkId: string, input: AddPosItemInput, call?: CallOptions) =>
       request<PosCheck>('POST', `/pos/checks/${checkId}/items`, input, call),
@@ -330,7 +414,7 @@ export function createClient(opts: SdkOptions) {
       request<PosCheck>('POST', `/pos/checks/${checkId}/fire`, {}, call),
     closePosCheck: (checkId: string, input: ClosePosCheckInput, call?: CallOptions) =>
       request<PosCheck>('POST', `/pos/checks/${checkId}/close`, input, call),
-    kds: (call?: CallOptions) => request<PosCheckItem[]>('GET', '/pos/kds', undefined, call),
+    kds: (call?: CallOptions) => request<PosKdsItem[]>('GET', '/pos/kds', undefined, call),
     markKdsItemReady: (itemId: string, call?: CallOptions) =>
       request<PosCheck>('POST', `/pos/kds/items/${itemId}/ready`, {}, call),
     openPosShift: (input: OpenPosShiftInput, call?: CallOptions) =>
@@ -358,8 +442,17 @@ export function createClient(opts: SdkOptions) {
       request<BookingSession>('POST', `/public/booking-sessions/${id}/cancel`, {}, call),
     sendMessage: (input: SendMessageInput, call?: CallOptions) =>
       request<Message>('POST', '/messages/send', input, call),
-    conversations: (query: { status?: string } = {}, call?: CallOptions) =>
-      request<Conversation[]>('GET', '/conversations', undefined, { ...call, query }),
+    conversations: (
+      query: { status?: string; cursor?: string; limit?: number } = {},
+      call?: CallOptions,
+    ) =>
+      request<ConversationPage>('GET', '/conversations', undefined, { ...call, query }).then(
+        (page) => page.data,
+      ),
+    conversationsPage: (
+      query: { status?: string; cursor?: string; limit?: number } = {},
+      call?: CallOptions,
+    ) => request<ConversationPage>('GET', '/conversations', undefined, { ...call, query }),
     createGdprRequest: (input: CreateGdprRequestInput, call?: CallOptions) =>
       request<GdprRequest>('POST', '/gdpr/requests', input, call),
     updateGdprRequest: (id: string, input: UpdateGdprRequestInput, call?: CallOptions) =>

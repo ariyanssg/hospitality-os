@@ -76,13 +76,20 @@ export class BookingService {
     tx: DbTransaction,
     helpers: UowHelpers,
     id: string,
+    propertyId?: string,
     pspToken?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
     const [session] = await tx
       .select()
       .from(bookingSessions)
-      .where(and(eq(bookingSessions.tenantId, ctx.tenantId), eq(bookingSessions.id, id)))
+      .where(
+        and(
+          eq(bookingSessions.tenantId, ctx.tenantId),
+          eq(bookingSessions.id, id),
+          propertyId ? eq(bookingSessions.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!session) throw new NotFoundError('Booking session');
     if (session.status === 'confirmed' && session.reservationId) return session.reservationId;
@@ -122,7 +129,12 @@ export class BookingService {
     return reservationId;
   }
 
-  async cancel(tx: DbTransaction, helpers: UowHelpers, id: string): Promise<void> {
+  async cancel(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    id: string,
+    propertyId?: string,
+  ): Promise<void> {
     const ctx = getRequestContext();
     const [session] = await tx
       .select({
@@ -131,7 +143,13 @@ export class BookingService {
         status: bookingSessions.status,
       })
       .from(bookingSessions)
-      .where(and(eq(bookingSessions.tenantId, ctx.tenantId), eq(bookingSessions.id, id)))
+      .where(
+        and(
+          eq(bookingSessions.tenantId, ctx.tenantId),
+          eq(bookingSessions.id, id),
+          propertyId ? eq(bookingSessions.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!session) throw new NotFoundError('Booking session');
     if (session.status === 'confirmed')
@@ -149,12 +167,18 @@ export class BookingService {
     });
   }
 
-  async dto(tx: DbTransaction, id: string): Promise<BookingSession> {
+  async dto(tx: DbTransaction, id: string, propertyId?: string): Promise<BookingSession> {
     const ctx = getRequestContext();
     const [s] = await tx
       .select()
       .from(bookingSessions)
-      .where(and(eq(bookingSessions.tenantId, ctx.tenantId), eq(bookingSessions.id, id)))
+      .where(
+        and(
+          eq(bookingSessions.tenantId, ctx.tenantId),
+          eq(bookingSessions.id, id),
+          propertyId ? eq(bookingSessions.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!s) throw new NotFoundError('Booking session');
     return {

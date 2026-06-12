@@ -34,12 +34,15 @@ function keysFor(event: DomainEvent): unknown[][] {
   if (event.type.startsWith('housekeeping.') || event.type === 'room.status_changed') {
     return [['hk-board'], ['hk-tasks'], ['arrivals'], ['available-rooms'], ['room-rack']];
   }
+  if (event.type.startsWith('pos.') || event.type.startsWith('offline.')) {
+    // POS terminal boards: checks, KDS queue, shifts — plus the folio a room charge just hit.
+    return [['pos'], ['folio'], ['folios'], ['manager-flash']];
+  }
   if (
     event.type.startsWith('folio.') ||
     event.type.startsWith('payment.') ||
     event.type.startsWith('deposit.') ||
-    event.type.startsWith('cashier.') ||
-    event.type.startsWith('pos.')
+    event.type.startsWith('cashier.')
   ) {
     return [
       ['folio'],

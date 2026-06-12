@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { and, asc, eq, gt, gte, ilike, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import {
@@ -31,7 +32,7 @@ import type {
   QueueRoomInput,
   Reservation,
   ReservationListQuery,
-  ReservationListRow,
+  ReservationListPage,
   RoomRackRow,
   RoomTypeAvailability,
   SignRegistrationCardInput,
@@ -47,6 +48,7 @@ import {
   ValidationError,
   type UowHelpers,
 } from '../kernel';
+import { env } from '../../config/env';
 import { AvailabilityService } from '../availability';
 import { RatesService } from '../rates';
 import { FolioService, type OpenFolioSummary } from '../folio';
@@ -64,6 +66,51 @@ export class ReservationsService {
     private readonly businessDate: BusinessDateService,
     private readonly housekeeping: HousekeepingService,
   ) {}
+
+  private cursorSecret(): string {
+    return env().BETTER_AUTH_SECRET;
+  }
+
+  private encodeReservationCursor(arrivalDate: string, confirmationNumber: string): string {
+    const payload = Buffer.from(JSON.stringify({ arrivalDate, confirmationNumber })).toString(
+      'base64url',
+    );
+    const sig = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  private decodeReservationCursor(cursor: string): {
+    arrivalDate: string;
+    confirmationNumber: string;
+  } {
+    const [payload, sig] = cursor.split('.');
+    if (!payload || !sig) {
+      throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+    }
+    const expected = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    if (
+      expected.length !== sig.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    ) {
+      throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+    }
+    let parsed: { arrivalDate?: unknown; confirmationNumber?: unknown };
+    try {
+      parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+        arrivalDate?: unknown;
+        confirmationNumber?: unknown;
+      };
+    } catch {
+      throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+    }
+    if (typeof parsed.arrivalDate !== 'string' || typeof parsed.confirmationNumber !== 'string') {
+      throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+    }
+    return {
+      arrivalDate: parsed.arrivalDate,
+      confirmationNumber: parsed.confirmationNumber,
+    };
+  }
 
   private requireProperty(): string {
     const { propertyIds } = getRequestContext();
@@ -968,9 +1015,10 @@ export class ReservationsService {
     tx: DbTransaction,
     propertyId: string,
     query: ReservationListQuery,
-  ): Promise<ReservationListRow[]> {
+  ): Promise<ReservationListPage> {
     const ctx = getRequestContext();
     const text = query.q?.trim();
+    const cursor = query.cursor ? this.decodeReservationCursor(query.cursor) : undefined;
     const rows = await tx
       .select({
         id: reservations.id,
@@ -994,6 +1042,15 @@ export class ReservationsService {
           query.status ? eq(reservations.status, query.status) : undefined,
           query.from ? gte(reservations.arrivalDate, query.from) : undefined,
           query.to ? lte(reservations.arrivalDate, query.to) : undefined,
+          cursor
+            ? or(
+                gt(reservations.arrivalDate, cursor.arrivalDate),
+                and(
+                  eq(reservations.arrivalDate, cursor.arrivalDate),
+                  gt(reservations.confirmationNumber, cursor.confirmationNumber),
+                ),
+              )
+            : undefined,
           text
             ? or(
                 ilike(reservations.confirmationNumber, `%${text}%`),
@@ -1005,19 +1062,28 @@ export class ReservationsService {
         ),
       )
       .orderBy(asc(reservations.arrivalDate), asc(reservations.confirmationNumber))
-      .limit(query.limit);
+      .limit(query.limit + 1);
 
-    return rows.map((r) => ({
-      id: r.id,
-      confirmationNumber: r.confirmationNumber,
-      status: r.status,
-      guestName: `${r.firstName} ${r.lastName}`,
-      arrivalDate: r.arrivalDate,
-      departureDate: r.departureDate,
-      adults: r.adults,
-      children: r.children,
-      total: Money.of(r.totalAmount, r.currency).toJSON(),
-    }));
+    const pageRows = rows.slice(0, query.limit);
+    const next = rows.length > query.limit ? pageRows[pageRows.length - 1] : undefined;
+    return {
+      data: pageRows.map((r) => ({
+        id: r.id,
+        confirmationNumber: r.confirmationNumber,
+        status: r.status,
+        guestName: `${r.firstName} ${r.lastName}`,
+        arrivalDate: r.arrivalDate,
+        departureDate: r.departureDate,
+        adults: r.adults,
+        children: r.children,
+        total: Money.of(r.totalAmount, r.currency).toJSON(),
+      })),
+      meta: {
+        nextCursor: next
+          ? this.encodeReservationCursor(next.arrivalDate, next.confirmationNumber)
+          : null,
+      },
+    };
   }
 
   async departures(tx: DbTransaction, propertyId: string): Promise<DepartureRow[]> {
@@ -1717,10 +1783,17 @@ export class ReservationsService {
 
   private async loadReservation(tx: DbTransaction, id: string) {
     const ctx = getRequestContext();
+    const propertyId = this.requireProperty();
     const [res] = await tx
       .select()
       .from(reservations)
-      .where(and(eq(reservations.tenantId, ctx.tenantId), eq(reservations.id, id)))
+      .where(
+        and(
+          eq(reservations.tenantId, ctx.tenantId),
+          eq(reservations.propertyId, propertyId),
+          eq(reservations.id, id),
+        ),
+      )
       .limit(1);
     if (!res) throw new NotFoundError('Reservation');
     return res;

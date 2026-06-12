@@ -1462,6 +1462,24 @@
           "total"
         ]
       },
+      "ReservationListPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReservationListRow"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
       "DepartureRow": {
         "type": "object",
         "properties": {
@@ -2113,6 +2131,24 @@
           "roomsPickedUp"
         ]
       },
+      "GroupBlockListPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupBlockListRow"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
       "TransferPosting": {
         "type": "object",
         "properties": {
@@ -2398,6 +2434,24 @@
           "completedAt"
         ]
       },
+      "HkTaskPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HkTask"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
       "CreateHkTask": {
         "type": "object",
         "properties": {
@@ -2622,6 +2676,24 @@
           "createdAt"
         ]
       },
+      "RoomBlockPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoomBlock"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
       "MaintenanceTicket": {
         "type": "object",
         "properties": {
@@ -2696,6 +2768,24 @@
           "assignedTo",
           "createdAt",
           "closedAt"
+        ]
+      },
+      "MaintenanceTicketPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceTicket"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ]
       },
       "CreateMaintenanceTicket": {
@@ -2989,6 +3079,24 @@
           "nationality"
         ]
       },
+      "GuestSearchPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Guest"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
       "GuestProfile": {
         "allOf": [
           {
@@ -3237,6 +3345,10 @@
             "nullable": true,
             "format": "uuid"
           },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
           "items": {
             "type": "array",
             "items": {
@@ -3256,7 +3368,108 @@
           "taxTotal",
           "total",
           "roomFolioId",
+          "openedAt",
           "items"
+        ]
+      },
+      "PosCheckPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosCheck"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "PosKdsItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PosCheckItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "checkId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "checkNumber": {
+                "type": "string"
+              },
+              "tableId": {
+                "type": "string",
+                "nullable": true,
+                "format": "uuid"
+              },
+              "outletId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "checkId",
+              "checkNumber",
+              "tableId",
+              "outletId"
+            ]
+          }
+        ]
+      },
+      "PosRoomChargeCandidate": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "folioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "folioNumber": {
+            "type": "string"
+          },
+          "guestName": {
+            "type": "string"
+          },
+          "roomNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "chargeAllowed": {
+            "type": "boolean"
+          },
+          "verificationHint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reservationId",
+          "folioId",
+          "folioNumber",
+          "guestName",
+          "roomNumber",
+          "balance",
+          "currency",
+          "chargeAllowed",
+          "verificationHint"
         ]
       },
       "OpenPosCheck": {
@@ -3802,6 +4015,24 @@
           "assigneeId",
           "sentiment",
           "lastMessageAt"
+        ]
+      },
+      "ConversationPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Conversation"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ]
       },
       "CreateGdprRequest": {
@@ -4511,6 +4742,14 @@
           },
           {
             "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "integer",
               "minimum": 1,
               "maximum": 200,
@@ -4536,10 +4775,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ReservationListRow"
-                  }
+                  "$ref": "#/components/schemas/ReservationListPage"
                 }
               }
             }
@@ -5574,6 +5810,25 @@
         "parameters": [
           {
             "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "string",
               "format": "uuid"
             },
@@ -5588,10 +5843,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GroupBlockListRow"
-                  }
+                  "$ref": "#/components/schemas/GroupBlockListPage"
                 }
               }
             }
@@ -6278,6 +6530,25 @@
           },
           {
             "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "string",
               "format": "uuid"
             },
@@ -6292,10 +6563,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/HkTask"
-                  }
+                  "$ref": "#/components/schemas/HkTaskPage"
                 }
               }
             }
@@ -6481,6 +6749,25 @@
         "parameters": [
           {
             "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "string",
               "format": "uuid"
             },
@@ -6495,10 +6782,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RoomBlock"
-                  }
+                  "$ref": "#/components/schemas/RoomBlockPage"
                 }
               }
             }
@@ -6622,6 +6906,42 @@
           {
             "schema": {
               "type": "string",
+              "enum": [
+                "reported",
+                "triaged",
+                "assigned",
+                "in_progress",
+                "done",
+                "verified",
+                "cancelled"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "format": "uuid"
             },
             "required": true,
@@ -6635,10 +6955,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MaintenanceTicket"
-                  }
+                  "$ref": "#/components/schemas/MaintenanceTicketPage"
                 }
               }
             }
@@ -6888,6 +7205,14 @@
           },
           {
             "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "integer",
               "minimum": 1,
               "maximum": 100,
@@ -6904,10 +7229,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Guest"
-                  }
+                  "$ref": "#/components/schemas/GuestSearchPage"
                 }
               }
             }
@@ -7048,6 +7370,57 @@
         }
       }
     },
+    "/pos/room-charge/search": {
+      "get": {
+        "summary": "Search in-house guests eligible for POS room charge",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Room-charge candidates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PosRoomChargeCandidate"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/pos/checks": {
       "post": {
         "summary": "Open a POS check",
@@ -7086,6 +7459,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PosCheck"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List POS checks (terminal board state)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "outletId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "fired",
+                "closed",
+                "voided"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosCheckPage"
                 }
               }
             }
@@ -7269,7 +7710,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/PosCheckItem"
+                    "$ref": "#/components/schemas/PosKdsItem"
                   }
                 }
               }
@@ -7655,6 +8096,38 @@
           {
             "schema": {
               "type": "string",
+              "enum": [
+                "open",
+                "pending",
+                "closed"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "format": "uuid"
             },
             "required": true,
@@ -7668,10 +8141,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Conversation"
-                  }
+                  "$ref": "#/components/schemas/ConversationPage"
                 }
               }
             }

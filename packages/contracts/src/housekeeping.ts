@@ -1,5 +1,5 @@
 import { z } from './zod';
-import { IsoDate, IsoDateTime, Uuid } from './common';
+import { IsoDate, IsoDateTime, Uuid, paginated } from './common';
 
 /** Housekeeping & Maintenance contracts (doc modules/02). */
 
@@ -44,7 +44,13 @@ export type CreateHkTaskInput = z.infer<typeof CreateHkTaskSchema>;
 export const HkTaskListQuerySchema = z.object({
   status: z.enum(['pending', 'in_progress', 'done', 'skipped']).optional(),
   dueDate: IsoDate.optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
 });
+export type HkTaskListQuery = z.infer<typeof HkTaskListQuerySchema>;
+
+export const HkTaskPageSchema = paginated(HkTaskSchema).openapi('HkTaskPage');
+export type HkTaskPage = z.infer<typeof HkTaskPageSchema>;
 
 export const HkBoardRoomSchema = z
   .object({
@@ -94,6 +100,15 @@ export const RoomBlockSchema = z
   .openapi('RoomBlock');
 export type RoomBlock = z.infer<typeof RoomBlockSchema>;
 
+export const RoomBlockListQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type RoomBlockListQuery = z.infer<typeof RoomBlockListQuerySchema>;
+
+export const RoomBlockPageSchema = paginated(RoomBlockSchema).openapi('RoomBlockPage');
+export type RoomBlockPage = z.infer<typeof RoomBlockPageSchema>;
+
 export const MaintenanceTicketSchema = z
   .object({
     id: Uuid,
@@ -101,7 +116,15 @@ export const MaintenanceTicketSchema = z
     roomNumber: z.string().nullable(),
     category: z.string(),
     priority: z.enum(['low', 'medium', 'high', 'urgent']),
-    status: z.enum(['reported', 'triaged', 'assigned', 'in_progress', 'done', 'verified', 'cancelled']),
+    status: z.enum([
+      'reported',
+      'triaged',
+      'assigned',
+      'in_progress',
+      'done',
+      'verified',
+      'cancelled',
+    ]),
     title: z.string(),
     description: z.string().nullable(),
     assignedTo: Uuid.nullable(),
@@ -110,6 +133,19 @@ export const MaintenanceTicketSchema = z
   })
   .openapi('MaintenanceTicket');
 export type MaintenanceTicket = z.infer<typeof MaintenanceTicketSchema>;
+
+export const MaintenanceTicketListQuerySchema = z.object({
+  status: z
+    .enum(['reported', 'triaged', 'assigned', 'in_progress', 'done', 'verified', 'cancelled'])
+    .optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type MaintenanceTicketListQuery = z.infer<typeof MaintenanceTicketListQuerySchema>;
+
+export const MaintenanceTicketPageSchema =
+  paginated(MaintenanceTicketSchema).openapi('MaintenanceTicketPage');
+export type MaintenanceTicketPage = z.infer<typeof MaintenanceTicketPageSchema>;
 
 export const CreateMaintenanceTicketSchema = z
   .object({

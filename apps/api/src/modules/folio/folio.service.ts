@@ -103,12 +103,18 @@ export class FolioService {
     return id;
   }
 
-  private async loadOpenFolio(tx: DbTransaction, folioId: string) {
+  private async loadOpenFolio(tx: DbTransaction, folioId: string, propertyId?: string) {
     const ctx = getRequestContext();
     const [folio] = await tx
       .select()
       .from(folios)
-      .where(and(eq(folios.id, folioId), eq(folios.tenantId, ctx.tenantId)))
+      .where(
+        and(
+          eq(folios.id, folioId),
+          eq(folios.tenantId, ctx.tenantId),
+          propertyId ? eq(folios.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!folio) throw new NotFoundError('Folio');
     if (folio.status !== 'open') throw new StateConflictError('Folio is not open');
@@ -116,17 +122,18 @@ export class FolioService {
   }
 
   /** Cross-module read API: validate that a folio can receive same-transaction postings. */
-  async assertOpenFolio(tx: DbTransaction, folioId: string): Promise<void> {
-    await this.loadOpenFolio(tx, folioId);
+  async assertOpenFolio(tx: DbTransaction, folioId: string, propertyId?: string): Promise<void> {
+    await this.loadOpenFolio(tx, folioId, propertyId);
   }
 
   async postCharge(
     tx: DbTransaction,
     helpers: UowHelpers,
     input: PostChargeInternal,
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
-    const folio = await this.loadOpenFolio(tx, input.folioId);
+    const folio = await this.loadOpenFolio(tx, input.folioId, propertyId);
     const currency = folio.currency.trim();
 
     const [code] = await tx
@@ -222,9 +229,10 @@ export class FolioService {
     tx: DbTransaction,
     helpers: UowHelpers,
     input: RecordPaymentInternal,
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
-    const folio = await this.loadOpenFolio(tx, input.folioId);
+    const folio = await this.loadOpenFolio(tx, input.folioId, propertyId);
     const currency = folio.currency.trim();
     const businessDate =
       input.businessDate ?? (await this.businessDate.current(tx, folio.propertyId));
@@ -327,9 +335,10 @@ export class FolioService {
     helpers: UowHelpers,
     folioId: string,
     input: AuthorizePaymentInput,
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
-    const folio = await this.loadOpenFolio(tx, folioId);
+    const folio = await this.loadOpenFolio(tx, folioId, propertyId);
     const amount = Money.fromJSON(input.amount);
     if (!amount.isPositive()) {
       throw new StateConflictError('Authorization amount must be positive');
@@ -390,12 +399,19 @@ export class FolioService {
     helpers: UowHelpers,
     paymentIntentId: string,
     input: CapturePaymentIntentInput,
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
     const [intent] = await tx
       .select()
       .from(paymentIntents)
-      .where(and(eq(paymentIntents.id, paymentIntentId), eq(paymentIntents.tenantId, ctx.tenantId)))
+      .where(
+        and(
+          eq(paymentIntents.id, paymentIntentId),
+          eq(paymentIntents.tenantId, ctx.tenantId),
+          propertyId ? eq(paymentIntents.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!intent) throw new NotFoundError('Payment intent');
     if (intent.status !== 'authorized') {
@@ -414,13 +430,18 @@ export class FolioService {
       throw new StateConflictError('Capture amount exceeds authorized amount');
     }
 
-    const paymentId = await this.recordPayment(tx, helpers, {
-      folioId: intent.folioId,
-      method: 'card',
-      amount,
-      reference: input.reference ?? intent.providerIntentId ?? undefined,
-      pspToken: intent.pspToken,
-    });
+    const paymentId = await this.recordPayment(
+      tx,
+      helpers,
+      {
+        folioId: intent.folioId,
+        method: 'card',
+        amount,
+        reference: input.reference ?? intent.providerIntentId ?? undefined,
+        pspToken: intent.pspToken,
+      },
+      propertyId,
+    );
 
     await tx
       .update(paymentIntents)
@@ -444,12 +465,22 @@ export class FolioService {
     return paymentId;
   }
 
-  async paymentIntentDto(tx: DbTransaction, id: string): Promise<PaymentIntent> {
+  async paymentIntentDto(
+    tx: DbTransaction,
+    id: string,
+    propertyId?: string,
+  ): Promise<PaymentIntent> {
     const ctx = getRequestContext();
     const [intent] = await tx
       .select()
       .from(paymentIntents)
-      .where(and(eq(paymentIntents.id, id), eq(paymentIntents.tenantId, ctx.tenantId)))
+      .where(
+        and(
+          eq(paymentIntents.id, id),
+          eq(paymentIntents.tenantId, ctx.tenantId),
+          propertyId ? eq(paymentIntents.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!intent) throw new NotFoundError('Payment intent');
     const currency = intent.currency.trim();
@@ -507,12 +538,19 @@ export class FolioService {
     paymentId: string,
     amount: Money,
     reason: string,
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
     const [pmt] = await tx
       .select()
       .from(payments)
-      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, ctx.tenantId)))
+      .where(
+        and(
+          eq(payments.id, paymentId),
+          eq(payments.tenantId, ctx.tenantId),
+          propertyId ? eq(payments.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!pmt) throw new NotFoundError('Payment');
     if (pmt.status !== 'captured') {
@@ -609,12 +647,18 @@ export class FolioService {
     return refundId;
   }
 
-  async getDto(tx: DbTransaction, folioId: string): Promise<Folio> {
+  async getDto(tx: DbTransaction, folioId: string, propertyId?: string): Promise<Folio> {
     const ctx = getRequestContext();
     const [folio] = await tx
       .select()
       .from(folios)
-      .where(and(eq(folios.id, folioId), eq(folios.tenantId, ctx.tenantId)))
+      .where(
+        and(
+          eq(folios.id, folioId),
+          eq(folios.tenantId, ctx.tenantId),
+          propertyId ? eq(folios.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!folio) throw new NotFoundError('Folio');
 
@@ -645,8 +689,13 @@ export class FolioService {
     };
   }
 
-  async close(tx: DbTransaction, helpers: UowHelpers, folioId: string): Promise<void> {
-    const folio = await this.loadOpenFolio(tx, folioId);
+  async close(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    folioId: string,
+    propertyId?: string,
+  ): Promise<void> {
+    const folio = await this.loadOpenFolio(tx, folioId, propertyId);
     const currency = folio.currency.trim();
     if (!Money.of(folio.balance, currency).isZero()) {
       throw new StateConflictError('Folio balance must be zero to close (or transfer to AR)');
@@ -676,6 +725,7 @@ export class FolioService {
     helpers: UowHelpers,
     reservationId: string,
     type: 'guest' | 'master' | 'company' | 'paymaster',
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
     const [res] = await tx
@@ -686,7 +736,13 @@ export class FolioService {
         currency: reservations.currency,
       })
       .from(reservations)
-      .where(and(eq(reservations.tenantId, ctx.tenantId), eq(reservations.id, reservationId)))
+      .where(
+        and(
+          eq(reservations.tenantId, ctx.tenantId),
+          eq(reservations.id, reservationId),
+          propertyId ? eq(reservations.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!res) throw new NotFoundError('Reservation');
 
@@ -725,13 +781,14 @@ export class FolioService {
     postingId: string,
     toFolioId: string,
     reason?: string,
+    propertyId?: string,
   ): Promise<void> {
     const ctx = getRequestContext();
     if (sourceFolioId === toFolioId) {
       throw new StateConflictError('Source and target folios are the same');
     }
-    const source = await this.loadOpenFolio(tx, sourceFolioId);
-    const target = await this.loadOpenFolio(tx, toFolioId);
+    const source = await this.loadOpenFolio(tx, sourceFolioId, propertyId);
+    const target = await this.loadOpenFolio(tx, toFolioId, propertyId);
     if (source.currency.trim() !== target.currency.trim()) {
       throw new StateConflictError('Folios have different currencies');
     }
@@ -832,6 +889,7 @@ export class FolioService {
       amount: Money;
       reference?: string;
     },
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
     const [res] = await tx
@@ -842,7 +900,13 @@ export class FolioService {
         currency: reservations.currency,
       })
       .from(reservations)
-      .where(and(eq(reservations.tenantId, ctx.tenantId), eq(reservations.id, reservationId)))
+      .where(
+        and(
+          eq(reservations.tenantId, ctx.tenantId),
+          eq(reservations.id, reservationId),
+          propertyId ? eq(reservations.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!res) throw new NotFoundError('Reservation');
     if (res.status !== 'confirmed' && res.status !== 'tentative') {
@@ -986,12 +1050,22 @@ export class FolioService {
     }
   }
 
-  async listDeposits(tx: DbTransaction, reservationId: string): Promise<Deposit[]> {
+  async listDeposits(
+    tx: DbTransaction,
+    reservationId: string,
+    propertyId?: string,
+  ): Promise<Deposit[]> {
     const ctx = getRequestContext();
     const rows = await tx
       .select()
       .from(deposits)
-      .where(and(eq(deposits.tenantId, ctx.tenantId), eq(deposits.reservationId, reservationId)))
+      .where(
+        and(
+          eq(deposits.tenantId, ctx.tenantId),
+          eq(deposits.reservationId, reservationId),
+          propertyId ? eq(deposits.propertyId, propertyId) : undefined,
+        ),
+      )
       .orderBy(asc(deposits.heldAt));
     return rows.map((d) => ({
       id: d.id,
@@ -1004,12 +1078,18 @@ export class FolioService {
     }));
   }
 
-  async depositDto(tx: DbTransaction, depositId: string): Promise<Deposit> {
+  async depositDto(tx: DbTransaction, depositId: string, propertyId?: string): Promise<Deposit> {
     const ctx = getRequestContext();
     const [d] = await tx
       .select()
       .from(deposits)
-      .where(and(eq(deposits.tenantId, ctx.tenantId), eq(deposits.id, depositId)))
+      .where(
+        and(
+          eq(deposits.tenantId, ctx.tenantId),
+          eq(deposits.id, depositId),
+          propertyId ? eq(deposits.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!d) throw new NotFoundError('Deposit');
     return {
@@ -1023,12 +1103,22 @@ export class FolioService {
     };
   }
 
-  async folioIdForPayment(tx: DbTransaction, paymentId: string): Promise<string> {
+  async folioIdForPayment(
+    tx: DbTransaction,
+    paymentId: string,
+    propertyId?: string,
+  ): Promise<string> {
     const ctx = getRequestContext();
     const [p] = await tx
       .select({ folioId: payments.folioId })
       .from(payments)
-      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, ctx.tenantId)))
+      .where(
+        and(
+          eq(payments.id, paymentId),
+          eq(payments.tenantId, ctx.tenantId),
+          propertyId ? eq(payments.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!p) throw new NotFoundError('Payment');
     return p.folioId;

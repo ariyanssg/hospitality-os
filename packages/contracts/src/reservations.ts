@@ -1,5 +1,5 @@
 import { z } from './zod';
-import { IsoDate, MoneySchema, Uuid } from './common';
+import { IsoDate, MoneySchema, Uuid, paginated } from './common';
 
 export const GuestRefSchema = z.union([
   z.object({ id: Uuid }),
@@ -253,6 +253,7 @@ export const ReservationListQuerySchema = z.object({
   from: IsoDate.optional(),
   to: IsoDate.optional(),
   q: z.string().optional(),
+  cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 export type ReservationListQuery = z.infer<typeof ReservationListQuerySchema>;
@@ -271,6 +272,10 @@ export const ReservationListRowSchema = z
   })
   .openapi('ReservationListRow');
 export type ReservationListRow = z.infer<typeof ReservationListRowSchema>;
+
+export const ReservationListPageSchema =
+  paginated(ReservationListRowSchema).openapi('ReservationListPage');
+export type ReservationListPage = z.infer<typeof ReservationListPageSchema>;
 
 export const DepartureRowSchema = z
   .object({
@@ -462,6 +467,16 @@ export const GroupBlockListRowSchema = z
   })
   .openapi('GroupBlockListRow');
 export type GroupBlockListRow = z.infer<typeof GroupBlockListRowSchema>;
+
+export const GroupBlockListQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type GroupBlockListQuery = z.infer<typeof GroupBlockListQuerySchema>;
+
+export const GroupBlockListPageSchema =
+  paginated(GroupBlockListRowSchema).openapi('GroupBlockListPage');
+export type GroupBlockListPage = z.infer<typeof GroupBlockListPageSchema>;
 
 export const ArrivalRowSchema = z
   .object({

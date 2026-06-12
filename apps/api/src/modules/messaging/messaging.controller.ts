@@ -1,10 +1,11 @@
 import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import {
+  ConversationListQuerySchema,
   ConversationSchema,
   CreateGdprRequestSchema,
   SendMessageSchema,
   UpdateGdprRequestSchema,
-  type Conversation,
+  type ConversationPage,
   type GdprRequest,
   type Message,
 } from '@vela/contracts';
@@ -44,16 +45,20 @@ export class MessagingController {
     const propertyId = requireProperty(ctx);
     return this.uow.runIdempotent(idempotencyKey, { propertyId, ...body }, async (tx, helpers) => {
       const id = await this.messaging.send(tx, helpers, propertyId, body);
-      return this.messaging.messageDto(tx, id);
+      return this.messaging.messageDto(tx, id, propertyId);
     });
   }
 
   @Get('conversations')
   @RequirePermission('guest.note.view')
-  inbox(@Ctx() ctx: RequestContext, @Query('status') status?: string): Promise<Conversation[]> {
+  inbox(
+    @Ctx() ctx: RequestContext,
+    @Query(new ZodValidationPipe(ConversationListQuerySchema))
+    query: typeof ConversationListQuerySchema._output,
+  ): Promise<ConversationPage> {
     return this.uow.read(async (tx) => {
-      const rows = await this.messaging.inbox(tx, requireProperty(ctx), status);
-      return rows.map((r) => ConversationSchema.parse(r));
+      const page = await this.messaging.inbox(tx, requireProperty(ctx), query);
+      return { ...page, data: page.data.map((r) => ConversationSchema.parse(r)) };
     });
   }
 
@@ -68,21 +73,27 @@ export class MessagingController {
     const propertyId = requireProperty(ctx);
     return this.uow.runIdempotent(idempotencyKey, { propertyId, ...body }, async (tx, helpers) => {
       const id = await this.messaging.createGdpr(tx, helpers, propertyId, body);
-      return this.messaging.gdprDto(tx, id);
+      return this.messaging.gdprDto(tx, id, propertyId);
     });
   }
 
   @Patch('gdpr/requests/:id')
   @RequirePermission('guest.export')
   updateGdpr(
+    @Ctx() ctx: RequestContext,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateGdprRequestSchema))
     body: typeof UpdateGdprRequestSchema._output,
     @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<GdprRequest> {
-    return this.uow.runIdempotent(idempotencyKey, { id, ...body }, async (tx, helpers) => {
-      await this.messaging.updateGdpr(tx, helpers, id, body);
-      return this.messaging.gdprDto(tx, id);
-    });
+    const propertyId = requireProperty(ctx);
+    return this.uow.runIdempotent(
+      idempotencyKey,
+      { propertyId, id, ...body },
+      async (tx, helpers) => {
+        await this.messaging.updateGdpr(tx, helpers, id, body, propertyId);
+        return this.messaging.gdprDto(tx, id, propertyId);
+      },
+    );
   }
 }

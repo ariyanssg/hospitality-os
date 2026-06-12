@@ -11,7 +11,7 @@ import {
 } from '@vela/contracts';
 import type { RequestContext } from '../context/request-context';
 import type { UowHelpers } from '../db/unit-of-work';
-import { NotFoundError } from '../errors/domain-errors';
+import { NotFoundError, ValidationError } from '../errors/domain-errors';
 
 @Injectable()
 export class WebhooksService {
@@ -30,6 +30,7 @@ export class WebhooksService {
     ctx: RequestContext,
     input: CreateWebhookEndpointInput,
   ): Promise<{ endpoint: WebhookEndpoint; secret: string }> {
+    this.assertPropertyScope(ctx, input.propertyId);
     const secret = `whsec_${randomBytes(32).toString('base64url')}`;
     const [row] = await tx
       .insert(webhookEndpoints)
@@ -52,11 +53,16 @@ export class WebhooksService {
     return { endpoint: this.endpointDto(row!), secret };
   }
 
-  async disable(tx: DbTransaction, helpers: UowHelpers, id: string): Promise<WebhookEndpoint> {
+  async disable(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    ctx: RequestContext,
+    id: string,
+  ): Promise<WebhookEndpoint> {
     const [row] = await tx
       .update(webhookEndpoints)
       .set({ status: 'disabled', disabledAt: new Date(), updatedAt: new Date() })
-      .where(eq(webhookEndpoints.id, id))
+      .where(and(eq(webhookEndpoints.tenantId, ctx.tenantId), eq(webhookEndpoints.id, id)))
       .returning();
     if (!row) throw new NotFoundError('Webhook endpoint');
     helpers.audit({
@@ -69,11 +75,17 @@ export class WebhooksService {
     return this.endpointDto(row!);
   }
 
-  async redeliver(tx: DbTransaction, deliveryId: string): Promise<WebhookDelivery> {
+  async redeliver(
+    tx: DbTransaction,
+    ctx: RequestContext,
+    deliveryId: string,
+  ): Promise<WebhookDelivery> {
     const [existing] = await tx
       .select()
       .from(webhookDeliveries)
-      .where(eq(webhookDeliveries.id, deliveryId))
+      .where(
+        and(eq(webhookDeliveries.tenantId, ctx.tenantId), eq(webhookDeliveries.id, deliveryId)),
+      )
       .limit(1);
     if (!existing) throw new NotFoundError('Webhook delivery');
     const nextAttempt = (existing?.attempt ?? 0) + 1;
@@ -126,5 +138,12 @@ export class WebhooksService {
       deliveredAt: row.deliveredAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
     });
+  }
+
+  private assertPropertyScope(ctx: RequestContext, propertyId?: string | null): void {
+    if (!propertyId || ctx.propertyIds.length === 0 || ctx.propertyIds.includes(propertyId)) return;
+    throw new ValidationError('Webhook endpoint property is outside the active property scope', [
+      { field: 'propertyId', code: 'OUT_OF_SCOPE' },
+    ]);
   }
 }

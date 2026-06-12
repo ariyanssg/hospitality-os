@@ -15,6 +15,7 @@ import {
   Receipt,
   Sparkles,
   Users,
+  UtensilsCrossed,
   Wrench,
 } from 'lucide-react';
 import { cn } from '@vela/ui';
@@ -36,6 +37,7 @@ const TABS = [
   { href: '/wake-up-calls', label: 'Wake-up calls', icon: AlarmClock, badge: null },
   { href: '/no-shows', label: 'No-shows', icon: CalendarX, badge: null },
   { href: '/audit', label: 'Night audit', icon: MoonStar, badge: null },
+  { href: '/pos', label: 'POS terminal', icon: UtensilsCrossed, badge: null },
 ] as const;
 
 /**

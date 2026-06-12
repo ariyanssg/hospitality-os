@@ -1,14 +1,17 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, lt, or, sql } from 'drizzle-orm';
 import { groupBlockInventory, groupBlocks, roomTypes, uuidv7, type DbTransaction } from '@vela/db';
 import type {
   CreateGroupBlockInput,
   GroupBlock,
   GroupBlockInventoryRow,
-  GroupBlockListRow,
+  GroupBlockListPage,
+  GroupBlockListQuery,
   ImportRoomingListInput,
   PickupGroupBlockInput,
 } from '@vela/contracts';
+import { env } from '../../config/env';
 import {
   AvailabilityConflictError,
   getRequestContext,
@@ -30,6 +33,50 @@ export class GroupBlocksService {
     private readonly folio: FolioService,
     private readonly reservations: ReservationsService,
   ) {}
+
+  private cursorSecret(): string {
+    return env().BETTER_AUTH_SECRET;
+  }
+
+  private invalidCursor(): never {
+    throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+  }
+
+  private encodeListCursor(arrivalDate: string, code: string, id: string): string {
+    const payload = Buffer.from(JSON.stringify({ arrivalDate, code, id })).toString('base64url');
+    const sig = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  private decodeListCursor(cursor: string): { arrivalDate: string; code: string; id: string } {
+    const [payload, sig] = cursor.split('.');
+    if (!payload || !sig) this.invalidCursor();
+    const expected = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    if (
+      expected.length !== sig.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    ) {
+      this.invalidCursor();
+    }
+    let parsed: { arrivalDate?: unknown; code?: unknown; id?: unknown };
+    try {
+      parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+        arrivalDate?: unknown;
+        code?: unknown;
+        id?: unknown;
+      };
+    } catch {
+      this.invalidCursor();
+    }
+    if (
+      typeof parsed.arrivalDate !== 'string' ||
+      typeof parsed.code !== 'string' ||
+      typeof parsed.id !== 'string'
+    ) {
+      this.invalidCursor();
+    }
+    return { arrivalDate: parsed.arrivalDate, code: parsed.code, id: parsed.id };
+  }
 
   async create(
     tx: DbTransaction,
@@ -123,9 +170,10 @@ export class GroupBlocksService {
     helpers: UowHelpers,
     blockId: string,
     input: PickupGroupBlockInput,
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
-    const block = await this.load(tx, blockId);
+    const block = await this.load(tx, blockId, propertyId);
     if (block.status === 'released') {
       throw new StateConflictError('Cannot pick up a released group block');
     }
@@ -211,13 +259,14 @@ export class GroupBlocksService {
     helpers: UowHelpers,
     blockId: string,
     input: ImportRoomingListInput,
+    propertyId?: string,
   ): Promise<Array<{ rowNumber: number; externalRef: string | null; reservationId: string }>> {
-    const block = await this.load(tx, blockId);
+    const block = await this.load(tx, blockId, propertyId);
     const created: Array<{ rowNumber: number; externalRef: string | null; reservationId: string }> =
       [];
 
     for (const [index, row] of input.rows.entries()) {
-      const reservationId = await this.pickup(tx, helpers, blockId, row);
+      const reservationId = await this.pickup(tx, helpers, blockId, row, propertyId);
       created.push({
         rowNumber: index + 1,
         externalRef: row.externalRef ?? null,
@@ -236,8 +285,13 @@ export class GroupBlocksService {
     return created;
   }
 
-  async list(tx: DbTransaction, propertyId: string): Promise<GroupBlockListRow[]> {
+  async list(
+    tx: DbTransaction,
+    propertyId: string,
+    query: GroupBlockListQuery,
+  ): Promise<GroupBlockListPage> {
     const ctx = getRequestContext();
+    const cursor = query.cursor ? this.decodeListCursor(query.cursor) : undefined;
     const blocks = await tx
       .select({
         id: groupBlocks.id,
@@ -249,10 +303,32 @@ export class GroupBlocksService {
         cutoffDate: groupBlocks.cutoffDate,
       })
       .from(groupBlocks)
-      .where(and(eq(groupBlocks.tenantId, ctx.tenantId), eq(groupBlocks.propertyId, propertyId)))
-      .orderBy(asc(groupBlocks.arrivalDate), asc(groupBlocks.code));
+      .where(
+        and(
+          eq(groupBlocks.tenantId, ctx.tenantId),
+          eq(groupBlocks.propertyId, propertyId),
+          cursor
+            ? or(
+                gt(groupBlocks.arrivalDate, cursor.arrivalDate),
+                and(
+                  eq(groupBlocks.arrivalDate, cursor.arrivalDate),
+                  gt(groupBlocks.code, cursor.code),
+                ),
+                and(
+                  eq(groupBlocks.arrivalDate, cursor.arrivalDate),
+                  eq(groupBlocks.code, cursor.code),
+                  gt(groupBlocks.id, cursor.id),
+                ),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(asc(groupBlocks.arrivalDate), asc(groupBlocks.code), asc(groupBlocks.id))
+      .limit(query.limit + 1);
 
-    if (blocks.length === 0) return [];
+    const pageBlocks = blocks.slice(0, query.limit);
+    const next = blocks.length > query.limit ? pageBlocks[pageBlocks.length - 1] : undefined;
+    if (pageBlocks.length === 0) return { data: [], meta: { nextCursor: null } };
     const inventory = await tx
       .select({
         groupBlockId: groupBlockInventory.groupBlockId,
@@ -265,7 +341,7 @@ export class GroupBlocksService {
           eq(groupBlockInventory.tenantId, ctx.tenantId),
           inArray(
             groupBlockInventory.groupBlockId,
-            blocks.map((b) => b.id),
+            pageBlocks.map((b) => b.id),
           ),
         ),
       );
@@ -278,16 +354,21 @@ export class GroupBlocksService {
       totals.set(row.groupBlockId, current);
     }
 
-    return blocks.map((b) => ({
-      ...b,
-      roomsBlocked: totals.get(b.id)?.blocked ?? 0,
-      roomsPickedUp: totals.get(b.id)?.pickedUp ?? 0,
-    }));
+    return {
+      data: pageBlocks.map((b) => ({
+        ...b,
+        roomsBlocked: totals.get(b.id)?.blocked ?? 0,
+        roomsPickedUp: totals.get(b.id)?.pickedUp ?? 0,
+      })),
+      meta: {
+        nextCursor: next ? this.encodeListCursor(next.arrivalDate, next.code, next.id) : null,
+      },
+    };
   }
 
-  async getDto(tx: DbTransaction, id: string): Promise<GroupBlock> {
-    const block = await this.load(tx, id);
-    const inventory = await this.inventoryRows(tx, id);
+  async getDto(tx: DbTransaction, id: string, propertyId?: string): Promise<GroupBlock> {
+    const block = await this.load(tx, id, propertyId);
+    const inventory = await this.inventoryRows(tx, id, propertyId);
 
     return {
       id: block.id,
@@ -306,18 +387,24 @@ export class GroupBlocksService {
     };
   }
 
-  private async load(tx: DbTransaction, id: string) {
+  private async load(tx: DbTransaction, id: string, propertyId?: string) {
     const ctx = getRequestContext();
     const [block] = await tx
       .select()
       .from(groupBlocks)
-      .where(and(eq(groupBlocks.tenantId, ctx.tenantId), eq(groupBlocks.id, id)))
+      .where(
+        and(
+          eq(groupBlocks.tenantId, ctx.tenantId),
+          eq(groupBlocks.id, id),
+          propertyId ? eq(groupBlocks.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!block) throw new NotFoundError('Group block');
     return block;
   }
 
-  private async inventoryRows(tx: DbTransaction, id: string) {
+  private async inventoryRows(tx: DbTransaction, id: string, propertyId?: string) {
     const ctx = getRequestContext();
     return tx
       .select({
@@ -335,6 +422,7 @@ export class GroupBlocksService {
         and(
           eq(groupBlockInventory.tenantId, ctx.tenantId),
           eq(groupBlockInventory.groupBlockId, id),
+          propertyId ? eq(groupBlockInventory.propertyId, propertyId) : undefined,
         ),
       )
       .orderBy(asc(groupBlockInventory.stayDate), asc(roomTypes.code));

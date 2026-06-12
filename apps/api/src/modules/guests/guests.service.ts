@@ -1,15 +1,68 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { and, asc, desc, eq, gt, ilike, or, sql } from 'drizzle-orm';
 import { guests, reservations, type DbTransaction } from '@vela/db';
-import type { Guest, GuestProfile, UpdateGuestInput } from '@vela/contracts';
-import { getRequestContext, NotFoundError, type UowHelpers } from '../kernel';
+import type {
+  Guest,
+  GuestProfile,
+  GuestSearchPage,
+  GuestSearchQuery,
+  UpdateGuestInput,
+} from '@vela/contracts';
+import { env } from '../../config/env';
+import { getRequestContext, NotFoundError, ValidationError, type UowHelpers } from '../kernel';
 
 /** Guest profiles (CRM v0): search, profile with stay history, edit. Merge/dedup is Phase 2. */
 @Injectable()
 export class GuestsService {
-  async search(tx: DbTransaction, q: string, limit: number): Promise<Guest[]> {
+  private cursorSecret(): string {
+    return env().BETTER_AUTH_SECRET;
+  }
+
+  private invalidCursor(): never {
+    throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+  }
+
+  private encodeGuestCursor(lastName: string, firstName: string, id: string): string {
+    const payload = Buffer.from(JSON.stringify({ lastName, firstName, id })).toString('base64url');
+    const sig = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  private decodeGuestCursor(cursor: string): { lastName: string; firstName: string; id: string } {
+    const [payload, sig] = cursor.split('.');
+    if (!payload || !sig) this.invalidCursor();
+    const expected = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    if (
+      expected.length !== sig.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    ) {
+      this.invalidCursor();
+    }
+    let parsed: { lastName?: unknown; firstName?: unknown; id?: unknown };
+    try {
+      parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+        lastName?: unknown;
+        firstName?: unknown;
+        id?: unknown;
+      };
+    } catch {
+      this.invalidCursor();
+    }
+    if (
+      typeof parsed.lastName !== 'string' ||
+      typeof parsed.firstName !== 'string' ||
+      typeof parsed.id !== 'string'
+    ) {
+      this.invalidCursor();
+    }
+    return { lastName: parsed.lastName, firstName: parsed.firstName, id: parsed.id };
+  }
+
+  async search(tx: DbTransaction, query: GuestSearchQuery): Promise<GuestSearchPage> {
     const ctx = getRequestContext();
-    const text = q.trim();
+    const text = query.q;
+    const cursor = query.cursor ? this.decodeGuestCursor(query.cursor) : undefined;
     const rows = await tx
       .select()
       .from(guests)
@@ -22,11 +75,29 @@ export class GuestsService {
             ilike(guests.email, `%${text}%`),
             sql`(${guests.firstName} || ' ' || ${guests.lastName}) ILIKE ${`%${text}%`}`,
           ),
+          cursor
+            ? or(
+                gt(guests.lastName, cursor.lastName),
+                and(eq(guests.lastName, cursor.lastName), gt(guests.firstName, cursor.firstName)),
+                and(
+                  eq(guests.lastName, cursor.lastName),
+                  eq(guests.firstName, cursor.firstName),
+                  gt(guests.id, cursor.id),
+                ),
+              )
+            : undefined,
         ),
       )
-      .orderBy(asc(guests.lastName), asc(guests.firstName))
-      .limit(limit);
-    return rows.map((g) => this.toDto(g));
+      .orderBy(asc(guests.lastName), asc(guests.firstName), asc(guests.id))
+      .limit(query.limit + 1);
+    const pageRows = rows.slice(0, query.limit);
+    const next = rows.length > query.limit ? pageRows[pageRows.length - 1] : undefined;
+    return {
+      data: pageRows.map((g) => this.toDto(g)),
+      meta: {
+        nextCursor: next ? this.encodeGuestCursor(next.lastName, next.firstName, next.id) : null,
+      },
+    };
   }
 
   async profile(tx: DbTransaction, id: string): Promise<GuestProfile> {

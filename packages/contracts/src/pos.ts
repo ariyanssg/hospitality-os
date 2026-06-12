@@ -1,5 +1,5 @@
 import { z } from './zod';
-import { IsoDateTime, MoneySchema, Uuid } from './common';
+import { IsoDateTime, MoneySchema, Uuid, paginated } from './common';
 
 export const PosOutletSchema = z
   .object({
@@ -60,6 +60,27 @@ export const ClosePosCheckSchema = z
   .openapi('ClosePosCheck');
 export type ClosePosCheckInput = z.infer<typeof ClosePosCheckSchema>;
 
+export const PosRoomChargeSearchQuerySchema = z.object({
+  q: z.string().trim().min(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+export type PosRoomChargeSearchQuery = z.infer<typeof PosRoomChargeSearchQuerySchema>;
+
+export const PosRoomChargeCandidateSchema = z
+  .object({
+    reservationId: Uuid,
+    folioId: Uuid,
+    folioNumber: z.string(),
+    guestName: z.string(),
+    roomNumber: z.string().nullable(),
+    balance: MoneySchema,
+    currency: z.string().length(3),
+    chargeAllowed: z.boolean(),
+    verificationHint: z.string(),
+  })
+  .openapi('PosRoomChargeCandidate');
+export type PosRoomChargeCandidate = z.infer<typeof PosRoomChargeCandidateSchema>;
+
 export const PosCheckItemSchema = z
   .object({
     id: Uuid,
@@ -88,10 +109,31 @@ export const PosCheckSchema = z
     taxTotal: MoneySchema,
     total: MoneySchema,
     roomFolioId: Uuid.nullable(),
+    openedAt: IsoDateTime,
     items: z.array(PosCheckItemSchema),
   })
   .openapi('PosCheck');
 export type PosCheck = z.infer<typeof PosCheckSchema>;
+
+export const PosCheckListQuerySchema = z.object({
+  outletId: Uuid.optional(),
+  status: z.enum(['open', 'fired', 'closed', 'voided']).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type PosCheckListQuery = z.infer<typeof PosCheckListQuerySchema>;
+
+export const PosCheckPageSchema = paginated(PosCheckSchema).openapi('PosCheckPage');
+export type PosCheckPage = z.infer<typeof PosCheckPageSchema>;
+
+/** KDS queue entry — a fired/ready item with enough check context to group tickets. */
+export const PosKdsItemSchema = PosCheckItemSchema.extend({
+  checkId: Uuid,
+  checkNumber: z.string(),
+  tableId: Uuid.nullable(),
+  outletId: Uuid,
+}).openapi('PosKdsItem');
+export type PosKdsItem = z.infer<typeof PosKdsItemSchema>;
 
 export const PosShiftSchema = z
   .object({

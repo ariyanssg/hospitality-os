@@ -1,5 +1,5 @@
 import { z } from './zod';
-import { IsoDateTime, Uuid } from './common';
+import { IsoDateTime, Uuid, paginated } from './common';
 
 export const SendMessageSchema = z
   .object({
@@ -27,6 +27,16 @@ export const ConversationSchema = z
   })
   .openapi('Conversation');
 export type Conversation = z.infer<typeof ConversationSchema>;
+
+export const ConversationListQuerySchema = z.object({
+  status: z.enum(['open', 'pending', 'closed']).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type ConversationListQuery = z.infer<typeof ConversationListQuerySchema>;
+
+export const ConversationPageSchema = paginated(ConversationSchema).openapi('ConversationPage');
+export type ConversationPage = z.infer<typeof ConversationPageSchema>;
 
 export const MessageSchema = z
   .object({

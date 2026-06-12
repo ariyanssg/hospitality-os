@@ -41,20 +41,24 @@ export class WebhooksController {
   @Post('endpoints/:id/disable')
   @RequirePermission('webhook.manage')
   disable(
+    @Ctx() ctx: RequestContext,
     @Param('id') id: string,
     @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<WebhookEndpoint> {
-    return this.uow.runIdempotent(idempotencyKey, { id }, (tx, helpers) =>
-      this.webhooks.disable(tx, helpers, id),
+    return this.uow.runIdempotent(idempotencyKey, { tenantId: ctx.tenantId, id }, (tx, helpers) =>
+      this.webhooks.disable(tx, helpers, ctx, id),
     );
   }
 
   @Post('deliveries/:id/redeliver')
   @RequirePermission('webhook.manage')
   redeliver(
+    @Ctx() ctx: RequestContext,
     @Param('id') id: string,
     @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<WebhookDelivery> {
-    return this.uow.runIdempotent(idempotencyKey, { id }, (tx) => this.webhooks.redeliver(tx, id));
+    return this.uow.runIdempotent(idempotencyKey, { tenantId: ctx.tenantId, id }, (tx) =>
+      this.webhooks.redeliver(tx, ctx, id),
+    );
   }
 }

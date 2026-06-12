@@ -87,13 +87,20 @@ export class CashierService {
     helpers: UowHelpers,
     sessionId: string,
     countedTotal: Money,
+    propertyId?: string,
     varianceReason?: string,
   ): Promise<void> {
     const ctx = getRequestContext();
     const [session] = await tx
       .select()
       .from(cashierSessions)
-      .where(and(eq(cashierSessions.tenantId, ctx.tenantId), eq(cashierSessions.id, sessionId)))
+      .where(
+        and(
+          eq(cashierSessions.tenantId, ctx.tenantId),
+          eq(cashierSessions.id, sessionId),
+          propertyId ? eq(cashierSessions.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!session) throw new NotFoundError('Cashier session');
     if (session.status !== 'open') throw new StateConflictError('Cashier session is not open');
@@ -152,12 +159,18 @@ export class CashierService {
     });
   }
 
-  async getDto(tx: DbTransaction, sessionId: string): Promise<CashierSession> {
+  async getDto(tx: DbTransaction, sessionId: string, propertyId?: string): Promise<CashierSession> {
     const ctx = getRequestContext();
     const [session] = await tx
       .select()
       .from(cashierSessions)
-      .where(and(eq(cashierSessions.tenantId, ctx.tenantId), eq(cashierSessions.id, sessionId)))
+      .where(
+        and(
+          eq(cashierSessions.tenantId, ctx.tenantId),
+          eq(cashierSessions.id, sessionId),
+          propertyId ? eq(cashierSessions.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!session) throw new NotFoundError('Cashier session');
     return this.toDto(tx, session);

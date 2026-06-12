@@ -1,6 +1,9 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, sql, sum } from 'drizzle-orm';
+import { and, asc, eq, gt, ilike, inArray, or, sql, sum } from 'drizzle-orm';
 import {
+  folios,
+  guests,
   offlineOps,
   posCheckItems,
   posChecks,
@@ -8,6 +11,9 @@ import {
   posPayments,
   posShifts,
   posTables,
+  reservationRoomStays,
+  reservations,
+  rooms,
   uuidv7,
   type DbTransaction,
 } from '@vela/db';
@@ -15,7 +21,12 @@ import type {
   AddPosItemInput,
   OfflineOp,
   PosCheck,
+  PosCheckPage,
+  PosCheckListQuery,
+  PosKdsItem,
   PosOutlet,
+  PosRoomChargeCandidate,
+  PosRoomChargeSearchQuery,
   PosShift,
   PosTable,
   QueueOfflineOpInput,
@@ -29,6 +40,7 @@ import {
   type UowHelpers,
 } from '../kernel';
 import { FolioService } from '../folio';
+import { env } from '../../config/env';
 
 function checkNumberFrom(id: string): string {
   return `P${id.replace(/-/g, '').slice(-8).toUpperCase()}`;
@@ -37,6 +49,44 @@ function checkNumberFrom(id: string): string {
 @Injectable()
 export class PosService {
   constructor(private readonly folio: FolioService) {}
+
+  private cursorSecret(): string {
+    return env().BETTER_AUTH_SECRET;
+  }
+
+  private invalidCursor(): never {
+    throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+  }
+
+  private encodeCheckCursor(openedAt: Date, id: string): string {
+    const payload = Buffer.from(JSON.stringify({ openedAt: openedAt.toISOString(), id })).toString(
+      'base64url',
+    );
+    const sig = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  private decodeCheckCursor(cursor: string): { openedAt: Date; id: string } {
+    const [payload, sig] = cursor.split('.');
+    if (!payload || !sig) this.invalidCursor();
+    const expected = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    if (
+      expected.length !== sig.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    ) {
+      this.invalidCursor();
+    }
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+      openedAt?: unknown;
+      id?: unknown;
+    };
+    if (typeof parsed.openedAt !== 'string' || typeof parsed.id !== 'string') {
+      this.invalidCursor();
+    }
+    const openedAt = new Date(parsed.openedAt);
+    if (Number.isNaN(openedAt.getTime())) this.invalidCursor();
+    return { openedAt, id: parsed.id };
+  }
 
   async outlets(tx: DbTransaction, propertyId: string): Promise<PosOutlet[]> {
     const ctx = getRequestContext();
@@ -48,21 +98,89 @@ export class PosService {
     return rows.map((o) => ({ id: o.id, code: o.code, name: o.name, currency: o.currency.trim() }));
   }
 
-  async tables(tx: DbTransaction, outletId: string): Promise<PosTable[]> {
+  async tables(tx: DbTransaction, propertyId: string, outletId: string): Promise<PosTable[]> {
     const ctx = getRequestContext();
     const rows = await tx
       .select()
       .from(posTables)
-      .where(and(eq(posTables.tenantId, ctx.tenantId), eq(posTables.outletId, outletId)))
+      .innerJoin(posOutlets, eq(posOutlets.id, posTables.outletId))
+      .where(
+        and(
+          eq(posTables.tenantId, ctx.tenantId),
+          eq(posTables.outletId, outletId),
+          eq(posOutlets.tenantId, ctx.tenantId),
+          eq(posOutlets.propertyId, propertyId),
+        ),
+      )
       .orderBy(asc(posTables.section), asc(posTables.label));
-    return rows.map((t) => ({
-      id: t.id,
-      outletId: t.outletId,
-      label: t.label,
-      section: t.section,
-      seats: t.seats,
-      x: t.x,
-      y: t.y,
+    return rows.map((row) => ({
+      id: row.pos_tables.id,
+      outletId: row.pos_tables.outletId,
+      label: row.pos_tables.label,
+      section: row.pos_tables.section,
+      seats: row.pos_tables.seats,
+      x: row.pos_tables.x,
+      y: row.pos_tables.y,
+    }));
+  }
+
+  async roomChargeSearch(
+    tx: DbTransaction,
+    propertyId: string,
+    query: PosRoomChargeSearchQuery,
+  ): Promise<PosRoomChargeCandidate[]> {
+    const ctx = getRequestContext();
+    const text = query.q.trim();
+    const rows = await tx
+      .select({
+        reservationId: reservations.id,
+        folioId: folios.id,
+        folioNumber: folios.folioNumber,
+        firstName: guests.firstName,
+        lastName: guests.lastName,
+        roomNumber: rooms.number,
+        balance: folios.balance,
+        currency: folios.currency,
+      })
+      .from(reservations)
+      .innerJoin(guests, eq(guests.id, reservations.guestId))
+      .innerJoin(folios, eq(folios.reservationId, reservations.id))
+      .leftJoin(
+        reservationRoomStays,
+        and(
+          eq(reservationRoomStays.reservationId, reservations.id),
+          sql`${reservationRoomStays.closedAt} IS NULL`,
+        ),
+      )
+      .leftJoin(rooms, eq(rooms.id, reservationRoomStays.roomId))
+      .where(
+        and(
+          eq(reservations.tenantId, ctx.tenantId),
+          eq(reservations.propertyId, propertyId),
+          eq(reservations.status, 'checked_in'),
+          eq(folios.status, 'open'),
+          eq(folios.type, 'guest'),
+          or(
+            ilike(rooms.number, `%${text}%`),
+            ilike(guests.lastName, `%${text}%`),
+            ilike(guests.firstName, `%${text}%`),
+            sql`(${guests.firstName} || ' ' || ${guests.lastName}) ILIKE ${`%${text}%`}`,
+          ),
+        ),
+      )
+      .orderBy(asc(rooms.number), asc(guests.lastName), asc(guests.firstName))
+      .limit(query.limit);
+
+    return rows.map((r) => ({
+      reservationId: r.reservationId,
+      folioId: r.folioId,
+      folioNumber: r.folioNumber,
+      guestName: `${r.firstName} ${r.lastName}`,
+      roomNumber: r.roomNumber,
+      balance: Money.of(r.balance, r.currency.trim()).toJSON(),
+      currency: r.currency.trim(),
+      chargeAllowed: true,
+      verificationHint: r.roomNumber ? `${r.lastName}, room ${r.roomNumber}` : r.lastName,
     }));
   }
 
@@ -118,10 +236,11 @@ export class PosService {
   async addItem(
     tx: DbTransaction,
     helpers: UowHelpers,
+    propertyId: string,
     checkId: string,
     input: AddPosItemInput,
   ): Promise<void> {
-    const check = await this.loadOpenCheck(tx, checkId);
+    const check = await this.loadOpenCheck(tx, propertyId, checkId);
     const unit = Money.fromJSON(input.unitPrice);
     if (unit.currency !== check.currency.trim())
       throw new StateConflictError('Item currency does not match check');
@@ -147,8 +266,13 @@ export class PosService {
     });
   }
 
-  async fire(tx: DbTransaction, helpers: UowHelpers, checkId: string): Promise<void> {
-    const check = await this.loadOpenCheck(tx, checkId);
+  async fire(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    propertyId: string,
+    checkId: string,
+  ): Promise<void> {
+    const check = await this.loadOpenCheck(tx, propertyId, checkId);
     await tx
       .update(posCheckItems)
       .set({ status: 'fired', firedAt: new Date() })
@@ -166,7 +290,12 @@ export class PosService {
     });
   }
 
-  async markItemReady(tx: DbTransaction, helpers: UowHelpers, itemId: string): Promise<string> {
+  async markItemReady(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    propertyId: string,
+    itemId: string,
+  ): Promise<string> {
     const ctx = getRequestContext();
     const [item] = await tx
       .select({
@@ -175,7 +304,13 @@ export class PosService {
         propertyId: posCheckItems.propertyId,
       })
       .from(posCheckItems)
-      .where(and(eq(posCheckItems.tenantId, ctx.tenantId), eq(posCheckItems.id, itemId)))
+      .where(
+        and(
+          eq(posCheckItems.tenantId, ctx.tenantId),
+          eq(posCheckItems.propertyId, propertyId),
+          eq(posCheckItems.id, itemId),
+        ),
+      )
       .limit(1);
     if (!item) throw new NotFoundError('POS item');
     await tx
@@ -195,6 +330,7 @@ export class PosService {
   async close(
     tx: DbTransaction,
     helpers: UowHelpers,
+    propertyId: string,
     checkId: string,
     input: {
       payments: Array<{
@@ -205,12 +341,12 @@ export class PosService {
       roomFolioId?: string;
     },
   ): Promise<void> {
-    const check = await this.loadCheck(tx, checkId);
+    const check = await this.loadCheck(tx, propertyId, checkId);
     if (check.status === 'closed') throw new StateConflictError('Check is already closed');
     if (check.status === 'voided') throw new StateConflictError('Check is voided');
 
     if (input.roomFolioId) {
-      await this.folio.assertOpenFolio(tx, input.roomFolioId);
+      await this.assertRoomChargeFolio(tx, input.roomFolioId, check.propertyId);
       await this.folio.postCharge(tx, helpers, {
         folioId: input.roomFolioId,
         chargeCode: 'FNB',
@@ -274,13 +410,78 @@ export class PosService {
     });
   }
 
-  async getDto(tx: DbTransaction, checkId: string): Promise<PosCheck> {
-    const check = await this.loadCheck(tx, checkId);
+  async getDto(tx: DbTransaction, propertyId: string, checkId: string): Promise<PosCheck> {
+    const check = await this.loadCheck(tx, propertyId, checkId);
     const items = await tx
       .select()
       .from(posCheckItems)
       .where(eq(posCheckItems.checkId, checkId))
       .orderBy(asc(posCheckItems.createdAt));
+    return this.toCheckDto(check, items);
+  }
+
+  /** Board state for a terminal: every open/fired check (optionally one outlet) with items. */
+  async listChecks(
+    tx: DbTransaction,
+    propertyId: string,
+    query: PosCheckListQuery,
+  ): Promise<PosCheckPage> {
+    const ctx = getRequestContext();
+    const cursor = query.cursor ? this.decodeCheckCursor(query.cursor) : undefined;
+    const conditions = [
+      eq(posChecks.tenantId, ctx.tenantId),
+      eq(posChecks.propertyId, propertyId),
+      query.status
+        ? eq(posChecks.status, query.status)
+        : inArray(posChecks.status, ['open', 'fired']),
+      cursor
+        ? or(
+            gt(posChecks.openedAt, cursor.openedAt),
+            and(eq(posChecks.openedAt, cursor.openedAt), gt(posChecks.id, cursor.id)),
+          )
+        : undefined,
+    ];
+    if (query.outletId) conditions.push(eq(posChecks.outletId, query.outletId));
+    const rows = await tx
+      .select()
+      .from(posChecks)
+      .where(and(...conditions))
+      .orderBy(asc(posChecks.openedAt), asc(posChecks.id))
+      .limit(query.limit + 1);
+    const next = rows.length > query.limit ? rows[query.limit] : undefined;
+    const checks = rows.slice(0, query.limit);
+    if (!checks.length) return { data: [], meta: { nextCursor: null } };
+    const items = await tx
+      .select()
+      .from(posCheckItems)
+      .where(
+        and(
+          eq(posCheckItems.tenantId, ctx.tenantId),
+          inArray(
+            posCheckItems.checkId,
+            checks.map((c) => c.id),
+          ),
+        ),
+      )
+      .orderBy(asc(posCheckItems.createdAt));
+    const data = checks.map((c) =>
+      this.toCheckDto(
+        c,
+        items.filter((i) => i.checkId === c.id),
+      ),
+    );
+    return {
+      data,
+      meta: {
+        nextCursor: next ? this.encodeCheckCursor(next.openedAt, next.id) : null,
+      },
+    };
+  }
+
+  private toCheckDto(
+    check: typeof posChecks.$inferSelect,
+    items: Array<typeof posCheckItems.$inferSelect>,
+  ): PosCheck {
     const currency = check.currency.trim();
     return {
       id: check.id,
@@ -294,6 +495,7 @@ export class PosService {
       taxTotal: Money.of(check.taxTotal, currency).toJSON(),
       total: Money.of(check.total, currency).toJSON(),
       roomFolioId: check.roomFolioId,
+      openedAt: check.openedAt.toISOString(),
       items: items.map((i) => ({
         id: i.id,
         name: i.name,
@@ -308,10 +510,16 @@ export class PosService {
     };
   }
 
-  async kds(tx: DbTransaction, propertyId: string): Promise<PosCheck['items']> {
+  async kds(tx: DbTransaction, propertyId: string): Promise<PosKdsItem[]> {
     const ctx = getRequestContext();
     const rows = await tx
-      .select({ item: posCheckItems, currency: posChecks.currency })
+      .select({
+        item: posCheckItems,
+        currency: posChecks.currency,
+        checkNumber: posChecks.checkNumber,
+        tableId: posChecks.tableId,
+        outletId: posChecks.outletId,
+      })
       .from(posCheckItems)
       .innerJoin(posChecks, eq(posChecks.id, posCheckItems.checkId))
       .where(
@@ -324,6 +532,10 @@ export class PosService {
       .orderBy(asc(posCheckItems.firedAt), asc(posCheckItems.createdAt));
     return rows.map((r) => ({
       id: r.item.id,
+      checkId: r.item.checkId,
+      checkNumber: r.checkNumber,
+      tableId: r.tableId,
+      outletId: r.outletId,
       name: r.item.name,
       course: r.item.course,
       quantity: r.item.quantity,
@@ -344,6 +556,19 @@ export class PosService {
     const ctx = getRequestContext();
     if (!ctx.userId)
       throw new ValidationError('A user is required', [{ field: 'user', code: 'REQUIRED' }]);
+    const [outlet] = await tx
+      .select({ id: posOutlets.id })
+      .from(posOutlets)
+      .where(
+        and(
+          eq(posOutlets.tenantId, ctx.tenantId),
+          eq(posOutlets.propertyId, propertyId),
+          eq(posOutlets.id, outletId),
+        ),
+      )
+      .limit(1);
+    if (!outlet) throw new NotFoundError('POS outlet');
+
     const existing = await tx
       .select({ id: posShifts.id })
       .from(posShifts)
@@ -369,6 +594,7 @@ export class PosService {
   async closeShift(
     tx: DbTransaction,
     helpers: UowHelpers,
+    propertyId: string,
     shiftId: string,
     countedTotal: Money,
   ): Promise<void> {
@@ -376,7 +602,13 @@ export class PosService {
     const [shift] = await tx
       .select()
       .from(posShifts)
-      .where(and(eq(posShifts.tenantId, ctx.tenantId), eq(posShifts.id, shiftId)))
+      .where(
+        and(
+          eq(posShifts.tenantId, ctx.tenantId),
+          eq(posShifts.propertyId, propertyId),
+          eq(posShifts.id, shiftId),
+        ),
+      )
       .limit(1);
     if (!shift) throw new NotFoundError('POS shift');
     if (shift.status !== 'open') throw new StateConflictError('Shift already closed');
@@ -417,12 +649,18 @@ export class PosService {
     });
   }
 
-  async shiftDto(tx: DbTransaction, shiftId: string): Promise<PosShift> {
+  async shiftDto(tx: DbTransaction, propertyId: string, shiftId: string): Promise<PosShift> {
     const ctx = getRequestContext();
     const [s] = await tx
       .select()
       .from(posShifts)
-      .where(and(eq(posShifts.tenantId, ctx.tenantId), eq(posShifts.id, shiftId)))
+      .where(
+        and(
+          eq(posShifts.tenantId, ctx.tenantId),
+          eq(posShifts.propertyId, propertyId),
+          eq(posShifts.id, shiftId),
+        ),
+      )
       .limit(1);
     if (!s) throw new NotFoundError('POS shift');
     const currency = 'USD';
@@ -470,6 +708,32 @@ export class PosService {
     };
   }
 
+  private async assertRoomChargeFolio(
+    tx: DbTransaction,
+    folioId: string,
+    propertyId: string,
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    const [folio] = await tx
+      .select({ id: folios.id })
+      .from(folios)
+      .innerJoin(reservations, eq(reservations.id, folios.reservationId))
+      .where(
+        and(
+          eq(folios.tenantId, ctx.tenantId),
+          eq(folios.id, folioId),
+          eq(folios.propertyId, propertyId),
+          eq(folios.status, 'open'),
+          eq(folios.type, 'guest'),
+          eq(reservations.status, 'checked_in'),
+        ),
+      )
+      .limit(1);
+    if (!folio) {
+      throw new StateConflictError('Folio is not eligible for room charge');
+    }
+  }
+
   private async retotal(tx: DbTransaction, checkId: string): Promise<void> {
     const [row] = await tx
       .select({ subtotal: sum(posCheckItems.lineTotal) })
@@ -488,19 +752,25 @@ export class PosService {
       .where(eq(posChecks.id, checkId));
   }
 
-  private async loadOpenCheck(tx: DbTransaction, checkId: string) {
-    const check = await this.loadCheck(tx, checkId);
+  private async loadOpenCheck(tx: DbTransaction, propertyId: string, checkId: string) {
+    const check = await this.loadCheck(tx, propertyId, checkId);
     if (check.status !== 'open' && check.status !== 'fired')
       throw new StateConflictError(`Check is ${check.status}`);
     return check;
   }
 
-  private async loadCheck(tx: DbTransaction, checkId: string) {
+  private async loadCheck(tx: DbTransaction, propertyId: string, checkId: string) {
     const ctx = getRequestContext();
     const [check] = await tx
       .select()
       .from(posChecks)
-      .where(and(eq(posChecks.tenantId, ctx.tenantId), eq(posChecks.id, checkId)))
+      .where(
+        and(
+          eq(posChecks.tenantId, ctx.tenantId),
+          eq(posChecks.propertyId, propertyId),
+          eq(posChecks.id, checkId),
+        ),
+      )
       .limit(1);
     if (!check) throw new NotFoundError('POS check');
     return check;

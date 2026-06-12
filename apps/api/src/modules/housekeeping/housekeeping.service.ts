@@ -1,5 +1,6 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, or, sql } from 'drizzle-orm';
 import {
   availabilityDays,
   housekeepingTasks,
@@ -16,16 +17,24 @@ import type {
   CreateMaintenanceTicketInput,
   HkBoardRoom,
   HkTask,
+  HkTaskListQuery,
+  HkTaskPage,
   MaintenanceTicket,
+  MaintenanceTicketListQuery,
+  MaintenanceTicketPage,
   OutOfOrderInput,
   RoomBlock,
+  RoomBlockListQuery,
+  RoomBlockPage,
 } from '@vela/contracts';
+import { env } from '../../config/env';
 import {
   AvailabilityConflictError,
   BusinessDateService,
   getRequestContext,
   NotFoundError,
   StateConflictError,
+  ValidationError,
   type UowHelpers,
 } from '../kernel';
 
@@ -54,17 +63,89 @@ function isCheckViolation(e: unknown): boolean {
 export class HousekeepingService {
   constructor(private readonly businessDate: BusinessDateService) {}
 
+  private cursorSecret(): string {
+    return env().BETTER_AUTH_SECRET;
+  }
+
+  private invalidCursor(): never {
+    throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+  }
+
+  private encodeTaskCursor(
+    priorityWeight: number,
+    dueDate: string,
+    createdAt: Date,
+    id: string,
+  ): string {
+    const payload = Buffer.from(
+      JSON.stringify({ priorityWeight, dueDate, createdAt: createdAt.toISOString(), id }),
+    ).toString('base64url');
+    const sig = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  private decodeTaskCursor(cursor: string): {
+    priorityWeight: number;
+    dueDate: string;
+    createdAt: Date;
+    id: string;
+  } {
+    const [payload, sig] = cursor.split('.');
+    if (!payload || !sig) this.invalidCursor();
+    const expected = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    if (
+      expected.length !== sig.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    ) {
+      this.invalidCursor();
+    }
+    let parsed: { priorityWeight?: unknown; dueDate?: unknown; createdAt?: unknown; id?: unknown };
+    try {
+      parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+        priorityWeight?: unknown;
+        dueDate?: unknown;
+        createdAt?: unknown;
+        id?: unknown;
+      };
+    } catch {
+      this.invalidCursor();
+    }
+    if (
+      typeof parsed.priorityWeight !== 'number' ||
+      typeof parsed.dueDate !== 'string' ||
+      typeof parsed.createdAt !== 'string' ||
+      typeof parsed.id !== 'string'
+    ) {
+      this.invalidCursor();
+    }
+    const createdAt = new Date(parsed.createdAt);
+    if (Number.isNaN(createdAt.getTime())) this.invalidCursor();
+    return {
+      priorityWeight: parsed.priorityWeight,
+      dueDate: parsed.dueDate,
+      createdAt,
+      id: parsed.id,
+    };
+  }
+
   /** Create a task and emit `housekeeping.task_created`. Used by API + checkout/room-move hooks. */
   async createTask(
     tx: DbTransaction,
     helpers: UowHelpers,
     input: CreateHkTaskInput & { reservationId?: string },
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
     const [room] = await tx
       .select({ id: rooms.id, propertyId: rooms.propertyId })
       .from(rooms)
-      .where(and(eq(rooms.tenantId, ctx.tenantId), eq(rooms.id, input.roomId)))
+      .where(
+        and(
+          eq(rooms.tenantId, ctx.tenantId),
+          eq(rooms.id, input.roomId),
+          propertyId ? eq(rooms.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!room) throw new NotFoundError('Room');
 
@@ -100,13 +181,19 @@ export class HousekeepingService {
     return id;
   }
 
-  async taskDto(tx: DbTransaction, id: string): Promise<HkTask> {
+  async taskDto(tx: DbTransaction, id: string, propertyId?: string): Promise<HkTask> {
     const ctx = getRequestContext();
     const [row] = await tx
       .select({ task: housekeepingTasks, roomNumber: rooms.number })
       .from(housekeepingTasks)
       .innerJoin(rooms, eq(rooms.id, housekeepingTasks.roomId))
-      .where(and(eq(housekeepingTasks.tenantId, ctx.tenantId), eq(housekeepingTasks.id, id)))
+      .where(
+        and(
+          eq(housekeepingTasks.tenantId, ctx.tenantId),
+          eq(housekeepingTasks.id, id),
+          propertyId ? eq(housekeepingTasks.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!row) throw new NotFoundError('Housekeeping task');
     const t = row.task;
@@ -129,11 +216,13 @@ export class HousekeepingService {
   async listTasks(
     tx: DbTransaction,
     propertyId: string,
-    query: { status?: 'pending' | 'in_progress' | 'done' | 'skipped'; dueDate?: string },
-  ): Promise<HkTask[]> {
+    query: HkTaskListQuery,
+  ): Promise<HkTaskPage> {
     const ctx = getRequestContext();
+    const cursor = query.cursor ? this.decodeTaskCursor(query.cursor) : undefined;
+    const priorityWeight = sql<number>`CASE ${housekeepingTasks.priority} WHEN 'queue' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 2 END`;
     const rows = await tx
-      .select({ task: housekeepingTasks, roomNumber: rooms.number })
+      .select({ task: housekeepingTasks, roomNumber: rooms.number, priorityWeight })
       .from(housekeepingTasks)
       .innerJoin(rooms, eq(rooms.id, housekeepingTasks.roomId))
       .where(
@@ -142,26 +231,46 @@ export class HousekeepingService {
           eq(housekeepingTasks.propertyId, propertyId),
           query.status ? eq(housekeepingTasks.status, query.status) : undefined,
           query.dueDate ? eq(housekeepingTasks.dueDate, query.dueDate) : undefined,
+          cursor
+            ? sql`(${priorityWeight}, ${housekeepingTasks.dueDate}, ${housekeepingTasks.createdAt}, ${housekeepingTasks.id}) > (${cursor.priorityWeight}, ${cursor.dueDate}, ${cursor.createdAt}, ${cursor.id})`
+            : undefined,
         ),
       )
-      .orderBy(asc(housekeepingTasks.dueDate), asc(housekeepingTasks.createdAt));
-    // Queue rooms (waiting arrival) bubble to the top of the attendant list.
-    const weight: Record<string, number> = { queue: 0, high: 1, normal: 2, low: 3 };
-    rows.sort((a, b) => (weight[a.task.priority] ?? 2) - (weight[b.task.priority] ?? 2));
-    return rows.map((r) => ({
-      id: r.task.id,
-      roomId: r.task.roomId,
-      roomNumber: r.roomNumber,
-      reservationId: r.task.reservationId,
-      taskType: r.task.taskType,
-      status: r.task.status,
-      priority: r.task.priority,
-      dueDate: r.task.dueDate,
-      assignedTo: r.task.assignedTo,
-      notes: r.task.notes,
-      startedAt: r.task.startedAt?.toISOString() ?? null,
-      completedAt: r.task.completedAt?.toISOString() ?? null,
-    }));
+      .orderBy(
+        asc(priorityWeight),
+        asc(housekeepingTasks.dueDate),
+        asc(housekeepingTasks.createdAt),
+        asc(housekeepingTasks.id),
+      )
+      .limit(query.limit + 1);
+    const pageRows = rows.slice(0, query.limit);
+    const next = rows.length > query.limit ? pageRows[pageRows.length - 1] : undefined;
+    return {
+      data: pageRows.map((r) => ({
+        id: r.task.id,
+        roomId: r.task.roomId,
+        roomNumber: r.roomNumber,
+        reservationId: r.task.reservationId,
+        taskType: r.task.taskType,
+        status: r.task.status,
+        priority: r.task.priority,
+        dueDate: r.task.dueDate,
+        assignedTo: r.task.assignedTo,
+        notes: r.task.notes,
+        startedAt: r.task.startedAt?.toISOString() ?? null,
+        completedAt: r.task.completedAt?.toISOString() ?? null,
+      })),
+      meta: {
+        nextCursor: next
+          ? this.encodeTaskCursor(
+              next.priorityWeight,
+              next.task.dueDate,
+              next.task.createdAt,
+              next.task.id,
+            )
+          : null,
+      },
+    };
   }
 
   /**
@@ -173,12 +282,19 @@ export class HousekeepingService {
     helpers: UowHelpers,
     id: string,
     action: 'start' | 'complete' | 'skip',
+    propertyId?: string,
   ): Promise<void> {
     const ctx = getRequestContext();
     const [task] = await tx
       .select()
       .from(housekeepingTasks)
-      .where(and(eq(housekeepingTasks.tenantId, ctx.tenantId), eq(housekeepingTasks.id, id)))
+      .where(
+        and(
+          eq(housekeepingTasks.tenantId, ctx.tenantId),
+          eq(housekeepingTasks.id, id),
+          propertyId ? eq(housekeepingTasks.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!task) throw new NotFoundError('Housekeeping task');
 
@@ -218,7 +334,14 @@ export class HousekeepingService {
 
     // A completed clean makes the room clean; a completed inspection makes it inspected.
     const newHkStatus = task.taskType === 'inspection' ? 'inspected' : 'clean';
-    await this.setRoomStatus(tx, helpers, task.roomId, newHkStatus, `task ${task.taskType} completed`);
+    await this.setRoomStatus(
+      tx,
+      helpers,
+      task.roomId,
+      newHkStatus,
+      `task ${task.taskType} completed`,
+      propertyId,
+    );
 
     helpers.emit({
       type: 'housekeeping.task_completed',
@@ -286,7 +409,7 @@ export class HousekeepingService {
     });
   }
 
-  async boardRoom(tx: DbTransaction, roomId: string): Promise<HkBoardRoom> {
+  async boardRoom(tx: DbTransaction, roomId: string, propertyId?: string): Promise<HkBoardRoom> {
     const ctx = getRequestContext();
     const [r] = await tx
       .select({
@@ -300,7 +423,13 @@ export class HousekeepingService {
       })
       .from(rooms)
       .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
-      .where(and(eq(rooms.tenantId, ctx.tenantId), eq(rooms.id, roomId)))
+      .where(
+        and(
+          eq(rooms.tenantId, ctx.tenantId),
+          eq(rooms.id, roomId),
+          propertyId ? eq(rooms.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!r) throw new NotFoundError('Room');
     return {
@@ -320,9 +449,10 @@ export class HousekeepingService {
     helpers: UowHelpers,
     roomId: string,
     hkStatus: 'dirty' | 'clean' | 'inspected',
+    propertyId?: string,
     reason?: string,
   ): Promise<void> {
-    await this.setRoomStatus(tx, helpers, roomId, hkStatus, reason);
+    await this.setRoomStatus(tx, helpers, roomId, hkStatus, reason, propertyId);
   }
 
   private async setRoomStatus(
@@ -331,12 +461,19 @@ export class HousekeepingService {
     roomId: string,
     hkStatus: 'dirty' | 'clean' | 'inspected',
     reason?: string,
+    propertyId?: string,
   ): Promise<void> {
     const ctx = getRequestContext();
     const [room] = await tx
       .select({ id: rooms.id, propertyId: rooms.propertyId, occupancy: rooms.occupancy })
       .from(rooms)
-      .where(and(eq(rooms.tenantId, ctx.tenantId), eq(rooms.id, roomId)))
+      .where(
+        and(
+          eq(rooms.tenantId, ctx.tenantId),
+          eq(rooms.id, roomId),
+          propertyId ? eq(rooms.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!room) throw new NotFoundError('Room');
 
@@ -380,6 +517,7 @@ export class HousekeepingService {
     helpers: UowHelpers,
     roomId: string,
     input: OutOfOrderInput,
+    propertyId?: string,
   ): Promise<string> {
     const ctx = getRequestContext();
     if (input.toDate <= input.fromDate) {
@@ -388,7 +526,13 @@ export class HousekeepingService {
     const [room] = await tx
       .select({ id: rooms.id, propertyId: rooms.propertyId, roomTypeId: rooms.roomTypeId })
       .from(rooms)
-      .where(and(eq(rooms.tenantId, ctx.tenantId), eq(rooms.id, roomId)))
+      .where(
+        and(
+          eq(rooms.tenantId, ctx.tenantId),
+          eq(rooms.id, roomId),
+          propertyId ? eq(rooms.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!room) throw new NotFoundError('Room');
 
@@ -449,9 +593,14 @@ export class HousekeepingService {
     return id;
   }
 
-  async listRoomBlocks(tx: DbTransaction, propertyId: string): Promise<RoomBlock[]> {
+  async listRoomBlocks(
+    tx: DbTransaction,
+    propertyId: string,
+    query: RoomBlockListQuery,
+  ): Promise<RoomBlockPage> {
     const ctx = getRequestContext();
     const businessDate = await this.businessDate.current(tx, propertyId);
+    const cursor = query.cursor ? this.decodeRoomBlockCursor(query.cursor) : undefined;
     const rows = await tx
       .select({
         id: outOfOrderPeriods.id,
@@ -472,21 +621,85 @@ export class HousekeepingService {
           eq(outOfOrderPeriods.tenantId, ctx.tenantId),
           eq(outOfOrderPeriods.propertyId, propertyId),
           gt(outOfOrderPeriods.toDate, businessDate),
+          cursor
+            ? or(
+                gt(outOfOrderPeriods.fromDate, cursor.fromDate),
+                and(
+                  eq(outOfOrderPeriods.fromDate, cursor.fromDate),
+                  gt(rooms.number, cursor.roomNumber),
+                ),
+                and(
+                  eq(outOfOrderPeriods.fromDate, cursor.fromDate),
+                  eq(rooms.number, cursor.roomNumber),
+                  gt(outOfOrderPeriods.id, cursor.id),
+                ),
+              )
+            : undefined,
         ),
       )
-      .orderBy(asc(outOfOrderPeriods.fromDate), asc(rooms.number));
+      .orderBy(asc(outOfOrderPeriods.fromDate), asc(rooms.number), asc(outOfOrderPeriods.id))
+      .limit(query.limit + 1);
 
-    return rows.map((r) => ({
-      id: r.id,
-      roomId: r.roomId,
-      roomNumber: r.roomNumber,
-      roomTypeCode: r.roomTypeCode,
-      fromDate: r.fromDate,
-      toDate: r.toDate,
-      kind: r.kind as RoomBlock['kind'],
-      reason: r.reason,
-      createdAt: r.createdAt.toISOString(),
-    }));
+    const pageRows = rows.slice(0, query.limit);
+    const next = rows.length > query.limit ? pageRows[pageRows.length - 1] : undefined;
+    return {
+      data: pageRows.map((r) => ({
+        id: r.id,
+        roomId: r.roomId,
+        roomNumber: r.roomNumber,
+        roomTypeCode: r.roomTypeCode,
+        fromDate: r.fromDate,
+        toDate: r.toDate,
+        kind: r.kind as RoomBlock['kind'],
+        reason: r.reason,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      meta: {
+        nextCursor: next
+          ? this.encodeRoomBlockCursor(next.fromDate, next.roomNumber, next.id)
+          : null,
+      },
+    };
+  }
+
+  private encodeRoomBlockCursor(fromDate: string, roomNumber: string, id: string): string {
+    const payload = Buffer.from(JSON.stringify({ fromDate, roomNumber, id })).toString('base64url');
+    const sig = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  private decodeRoomBlockCursor(cursor: string): {
+    fromDate: string;
+    roomNumber: string;
+    id: string;
+  } {
+    const [payload, sig] = cursor.split('.');
+    if (!payload || !sig) this.invalidCursor();
+    const expected = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    if (
+      expected.length !== sig.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    ) {
+      this.invalidCursor();
+    }
+    let parsed: { fromDate?: unknown; roomNumber?: unknown; id?: unknown };
+    try {
+      parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+        fromDate?: unknown;
+        roomNumber?: unknown;
+        id?: unknown;
+      };
+    } catch {
+      this.invalidCursor();
+    }
+    if (
+      typeof parsed.fromDate !== 'string' ||
+      typeof parsed.roomNumber !== 'string' ||
+      typeof parsed.id !== 'string'
+    ) {
+      this.invalidCursor();
+    }
+    return { fromDate: parsed.fromDate, roomNumber: parsed.roomNumber, id: parsed.id };
   }
 
   // ── Maintenance ──
@@ -515,7 +728,12 @@ export class HousekeepingService {
       aggregateType: 'maintenance_ticket',
       aggregateId: id,
       propertyId,
-      data: { ticketId: id, roomId: input.roomId ?? null, category: input.category, priority: input.priority },
+      data: {
+        ticketId: id,
+        roomId: input.roomId ?? null,
+        category: input.category,
+        priority: input.priority,
+      },
     });
     helpers.audit({
       action: 'maintenance.ticket.create',
@@ -527,13 +745,19 @@ export class HousekeepingService {
     return id;
   }
 
-  async ticketDto(tx: DbTransaction, id: string): Promise<MaintenanceTicket> {
+  async ticketDto(tx: DbTransaction, id: string, propertyId?: string): Promise<MaintenanceTicket> {
     const ctx = getRequestContext();
     const [row] = await tx
       .select({ ticket: maintenanceTickets, roomNumber: rooms.number })
       .from(maintenanceTickets)
       .leftJoin(rooms, eq(rooms.id, maintenanceTickets.roomId))
-      .where(and(eq(maintenanceTickets.tenantId, ctx.tenantId), eq(maintenanceTickets.id, id)))
+      .where(
+        and(
+          eq(maintenanceTickets.tenantId, ctx.tenantId),
+          eq(maintenanceTickets.id, id),
+          propertyId ? eq(maintenanceTickets.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!row) throw new NotFoundError('Maintenance ticket');
     const t = row.ticket;
@@ -555,9 +779,10 @@ export class HousekeepingService {
   async listTickets(
     tx: DbTransaction,
     propertyId: string,
-    status?: string,
-  ): Promise<MaintenanceTicket[]> {
+    query: MaintenanceTicketListQuery,
+  ): Promise<MaintenanceTicketPage> {
     const ctx = getRequestContext();
+    const cursor = query.cursor ? this.decodeTicketCursor(query.cursor) : undefined;
     const rows = await tx
       .select({ ticket: maintenanceTickets, roomNumber: rooms.number })
       .from(maintenanceTickets)
@@ -566,28 +791,69 @@ export class HousekeepingService {
         and(
           eq(maintenanceTickets.tenantId, ctx.tenantId),
           eq(maintenanceTickets.propertyId, propertyId),
-          status
-            ? eq(
-                maintenanceTickets.status,
-                status as (typeof maintenanceTickets.status.enumValues)[number],
-              )
+          query.status ? eq(maintenanceTickets.status, query.status) : undefined,
+          cursor
+            ? sql`(${maintenanceTickets.createdAt}, ${maintenanceTickets.id}) > (${cursor.createdAt}, ${cursor.id})`
             : undefined,
         ),
       )
-      .orderBy(asc(maintenanceTickets.createdAt));
-    return rows.map((r) => ({
-      id: r.ticket.id,
-      roomId: r.ticket.roomId,
-      roomNumber: r.roomNumber ?? null,
-      category: r.ticket.category,
-      priority: r.ticket.priority,
-      status: r.ticket.status,
-      title: r.ticket.title,
-      description: r.ticket.description,
-      assignedTo: r.ticket.assignedTo,
-      createdAt: r.ticket.createdAt.toISOString(),
-      closedAt: r.ticket.closedAt?.toISOString() ?? null,
-    }));
+      .orderBy(asc(maintenanceTickets.createdAt), asc(maintenanceTickets.id))
+      .limit(query.limit + 1);
+    const pageRows = rows.slice(0, query.limit);
+    const next = rows.length > query.limit ? pageRows[pageRows.length - 1] : undefined;
+    return {
+      data: pageRows.map((r) => ({
+        id: r.ticket.id,
+        roomId: r.ticket.roomId,
+        roomNumber: r.roomNumber ?? null,
+        category: r.ticket.category,
+        priority: r.ticket.priority,
+        status: r.ticket.status,
+        title: r.ticket.title,
+        description: r.ticket.description,
+        assignedTo: r.ticket.assignedTo,
+        createdAt: r.ticket.createdAt.toISOString(),
+        closedAt: r.ticket.closedAt?.toISOString() ?? null,
+      })),
+      meta: {
+        nextCursor: next ? this.encodeTicketCursor(next.ticket.createdAt, next.ticket.id) : null,
+      },
+    };
+  }
+
+  private encodeTicketCursor(createdAt: Date, id: string): string {
+    const payload = Buffer.from(
+      JSON.stringify({ createdAt: createdAt.toISOString(), id }),
+    ).toString('base64url');
+    const sig = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  private decodeTicketCursor(cursor: string): { createdAt: Date; id: string } {
+    const [payload, sig] = cursor.split('.');
+    if (!payload || !sig) this.invalidCursor();
+    const expected = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    if (
+      expected.length !== sig.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    ) {
+      this.invalidCursor();
+    }
+    let parsed: { createdAt?: unknown; id?: unknown };
+    try {
+      parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+        createdAt?: unknown;
+        id?: unknown;
+      };
+    } catch {
+      this.invalidCursor();
+    }
+    if (typeof parsed.createdAt !== 'string' || typeof parsed.id !== 'string') {
+      this.invalidCursor();
+    }
+    const createdAt = new Date(parsed.createdAt);
+    if (Number.isNaN(createdAt.getTime())) this.invalidCursor();
+    return { createdAt, id: parsed.id };
   }
 
   /** Lifecycle: reported → triaged → assigned → in_progress → done → verified (doc modules/02). */
@@ -597,12 +863,19 @@ export class HousekeepingService {
     id: string,
     action: 'assign' | 'complete' | 'close',
     payload: { assignedTo?: string; resolutionNotes?: string },
+    propertyId?: string,
   ): Promise<void> {
     const ctx = getRequestContext();
     const [ticket] = await tx
       .select()
       .from(maintenanceTickets)
-      .where(and(eq(maintenanceTickets.tenantId, ctx.tenantId), eq(maintenanceTickets.id, id)))
+      .where(
+        and(
+          eq(maintenanceTickets.tenantId, ctx.tenantId),
+          eq(maintenanceTickets.id, id),
+          propertyId ? eq(maintenanceTickets.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!ticket) throw new NotFoundError('Maintenance ticket');
     if (ticket.status === 'verified' || ticket.status === 'cancelled') {

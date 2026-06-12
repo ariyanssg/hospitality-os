@@ -1,5 +1,5 @@
 import { z } from './zod';
-import { IsoDate, Uuid } from './common';
+import { IsoDate, Uuid, paginated } from './common';
 
 export const GuestSchema = z
   .object({
@@ -40,6 +40,11 @@ export const UpdateGuestSchema = z
 export type UpdateGuestInput = z.infer<typeof UpdateGuestSchema>;
 
 export const GuestSearchQuerySchema = z.object({
-  q: z.string().min(1),
+  q: z.string().trim().min(1),
+  cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
+export type GuestSearchQuery = z.infer<typeof GuestSearchQuerySchema>;
+
+export const GuestSearchPageSchema = paginated(GuestSchema).openapi('GuestSearchPage');
+export type GuestSearchPage = z.infer<typeof GuestSearchPageSchema>;

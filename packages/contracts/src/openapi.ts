@@ -11,6 +11,8 @@ import {
   CreateGroupBlockSchema,
   CreateReservationSchema,
   DepartureRowSchema,
+  GroupBlockListPageSchema,
+  GroupBlockListQuerySchema,
   GroupBlockListRowSchema,
   GroupBlockSchema,
   ImportRoomingListSchema,
@@ -25,6 +27,7 @@ import {
   ReinstateSchema,
   RegistrationCardSchema,
   ReservationListQuerySchema,
+  ReservationListPageSchema,
   ReservationListRowSchema,
   ReservationSchema,
   RoomingListImportResultSchema,
@@ -58,10 +61,15 @@ import {
   CreateHkTaskSchema,
   CreateMaintenanceTicketSchema,
   HkBoardRoomSchema,
+  HkTaskPageSchema,
   HkTaskListQuerySchema,
   HkTaskSchema,
   MaintenanceTicketSchema,
+  MaintenanceTicketListQuerySchema,
+  MaintenanceTicketPageSchema,
   OutOfOrderSchema,
+  RoomBlockListQuerySchema,
+  RoomBlockPageSchema,
   RoomBlockSchema,
   RoomStatusUpdateSchema,
 } from './housekeeping';
@@ -74,6 +82,7 @@ import {
 import { ManagerFlashQuerySchema, ManagerFlashSchema } from './reports';
 import {
   GuestProfileSchema,
+  GuestSearchPageSchema,
   GuestSchema,
   GuestSearchQuerySchema,
   UpdateGuestSchema,
@@ -85,9 +94,14 @@ import {
   OfflineOpSchema,
   OpenPosCheckSchema,
   OpenPosShiftSchema,
+  PosCheckPageSchema,
   PosCheckItemSchema,
+  PosCheckListQuerySchema,
   PosCheckSchema,
+  PosKdsItemSchema,
   PosOutletSchema,
+  PosRoomChargeCandidateSchema,
+  PosRoomChargeSearchQuerySchema,
   PosShiftSchema,
   PosTableSchema,
   QueueOfflineOpSchema,
@@ -98,6 +112,8 @@ import {
   StartBookingSessionSchema,
 } from './booking';
 import {
+  ConversationListQuerySchema,
+  ConversationPageSchema,
   ConversationSchema,
   CreateGdprRequestSchema,
   GdprRequestSchema,
@@ -147,6 +163,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     ModifyReservation: ModifyReservationSchema,
     WalkIn: WalkInSchema,
     ReservationListRow: ReservationListRowSchema,
+    ReservationListPage: ReservationListPageSchema,
     DepartureRow: DepartureRowSchema,
     InHouseRow: InHouseRowSchema,
     RoomRackRow: RoomRackRowSchema,
@@ -158,6 +175,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     RoomingListImportResult: RoomingListImportResultSchema,
     GroupBlock: GroupBlockSchema,
     GroupBlockListRow: GroupBlockListRowSchema,
+    GroupBlockListPage: GroupBlockListPageSchema,
     TransferPosting: TransferPostingSchema,
     CreateFolio: CreateFolioSchema,
     OpenCashierSession: OpenCashierSessionSchema,
@@ -166,24 +184,31 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     RecordDeposit: RecordDepositSchema,
     Deposit: DepositSchema,
     HkTask: HkTaskSchema,
+    HkTaskPage: HkTaskPageSchema,
     CreateHkTask: CreateHkTaskSchema,
     HkBoardRoom: HkBoardRoomSchema,
     RoomStatusUpdate: RoomStatusUpdateSchema,
     OutOfOrder: OutOfOrderSchema,
     RoomBlock: RoomBlockSchema,
+    RoomBlockPage: RoomBlockPageSchema,
     MaintenanceTicket: MaintenanceTicketSchema,
+    MaintenanceTicketPage: MaintenanceTicketPageSchema,
     CreateMaintenanceTicket: CreateMaintenanceTicketSchema,
     RatePlan: RatePlanSchema,
     RatePriceRow: RatePriceRowSchema,
     PriceGridUpdate: PriceGridUpdateSchema,
     ManagerFlash: ManagerFlashSchema,
     Guest: GuestSchema,
+    GuestSearchPage: GuestSearchPageSchema,
     GuestProfile: GuestProfileSchema,
     UpdateGuest: UpdateGuestSchema,
     PosOutlet: PosOutletSchema,
     PosTable: PosTableSchema,
     PosCheck: PosCheckSchema,
+    PosCheckPage: PosCheckPageSchema,
     PosCheckItem: PosCheckItemSchema,
+    PosKdsItem: PosKdsItemSchema,
+    PosRoomChargeCandidate: PosRoomChargeCandidateSchema,
     OpenPosCheck: OpenPosCheckSchema,
     AddPosItem: AddPosItemSchema,
     ClosePosCheck: ClosePosCheckSchema,
@@ -198,6 +223,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     SendMessage: SendMessageSchema,
     Message: MessageSchema,
     Conversation: ConversationSchema,
+    ConversationPage: ConversationPageSchema,
     CreateGdprRequest: CreateGdprRequestSchema,
     UpdateGdprRequest: UpdateGdprRequestSchema,
     GdprRequest: GdprRequestSchema,
@@ -422,7 +448,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       query: ReservationListQuerySchema,
       headers: z.object({ 'X-Property-Id': propertyHeader }),
     },
-    responses: { 200: { description: 'Reservations', ...json(z.array(ReservationListRowSchema)) } },
+    responses: { 200: { description: 'Reservations', ...json(ReservationListPageSchema) } },
   });
 
   for (const [action, body] of [
@@ -465,8 +491,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'get',
     path: '/group-blocks',
     summary: 'List group blocks with pickup totals',
-    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
-    responses: { 200: { description: 'Group blocks', ...json(z.array(GroupBlockListRowSchema)) } },
+    request: {
+      query: GroupBlockListQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Group blocks', ...json(GroupBlockListPageSchema) } },
   });
   r.registerPath({
     method: 'get',
@@ -626,7 +655,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       query: HkTaskListQuerySchema,
       headers: z.object({ 'X-Property-Id': propertyHeader }),
     },
-    responses: { 200: { description: 'Tasks', ...json(z.array(HkTaskSchema)) } },
+    responses: { 200: { description: 'Tasks', ...json(HkTaskPageSchema) } },
   });
   r.registerPath({
     method: 'post',
@@ -657,8 +686,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'get',
     path: '/rooms/out-of-service',
     summary: 'List active and upcoming out-of-order/out-of-service room blocks',
-    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
-    responses: { 200: { description: 'Room blocks', ...json(z.array(RoomBlockSchema)) } },
+    request: {
+      query: RoomBlockListQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Room blocks', ...json(RoomBlockPageSchema) } },
   });
   r.registerPath({
     method: 'post',
@@ -689,8 +721,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'get',
     path: '/maintenance/tickets',
     summary: 'List maintenance tickets',
-    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
-    responses: { 200: { description: 'Tickets', ...json(z.array(MaintenanceTicketSchema)) } },
+    request: {
+      query: MaintenanceTicketListQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Tickets', ...json(MaintenanceTicketPageSchema) } },
   });
   r.registerPath({
     method: 'post',
@@ -746,7 +781,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     path: '/guests',
     summary: 'Search guest profiles',
     request: { query: GuestSearchQuerySchema },
-    responses: { 200: { description: 'Guests', ...json(z.array(GuestSchema)) } },
+    responses: { 200: { description: 'Guests', ...json(GuestSearchPageSchema) } },
   });
   r.registerPath({
     method: 'get',
@@ -783,6 +818,21 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     responses: { 200: { description: 'Tables', ...json(z.array(PosTableSchema)) } },
   });
   r.registerPath({
+    method: 'get',
+    path: '/pos/room-charge/search',
+    summary: 'Search in-house guests eligible for POS room charge',
+    request: {
+      query: PosRoomChargeSearchQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: {
+      200: {
+        description: 'Room-charge candidates',
+        ...json(z.array(PosRoomChargeCandidateSchema)),
+      },
+    },
+  });
+  r.registerPath({
     method: 'post',
     path: '/pos/checks',
     summary: 'Open a POS check',
@@ -791,6 +841,16 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       body: json(OpenPosCheckSchema),
     },
     responses: { 201: { description: 'Check', ...json(PosCheckSchema) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/pos/checks',
+    summary: 'List POS checks (terminal board state)',
+    request: {
+      query: PosCheckListQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Checks', ...json(PosCheckPageSchema) } },
   });
   r.registerPath({
     method: 'get',
@@ -836,7 +896,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     path: '/pos/kds',
     summary: 'Kitchen display queue',
     request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
-    responses: { 200: { description: 'KDS items', ...json(z.array(PosCheckItemSchema)) } },
+    responses: { 200: { description: 'KDS items', ...json(z.array(PosKdsItemSchema)) } },
   });
   r.registerPath({
     method: 'post',
@@ -933,8 +993,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'get',
     path: '/conversations',
     summary: 'Guest conversation inbox',
-    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
-    responses: { 200: { description: 'Conversations', ...json(z.array(ConversationSchema)) } },
+    request: {
+      query: ConversationListQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Conversations', ...json(ConversationPageSchema) } },
   });
   r.registerPath({
     method: 'post',

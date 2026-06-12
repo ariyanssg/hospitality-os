@@ -2,7 +2,7 @@ import { Body, Controller, Get, Headers, Param, Patch, Query } from '@nestjs/com
 import {
   GuestSearchQuerySchema,
   UpdateGuestSchema,
-  type Guest,
+  type GuestSearchPage,
   type GuestProfile,
 } from '@vela/contracts';
 import { RequirePermission, UnitOfWork, ZodValidationPipe } from '../kernel';
@@ -20,8 +20,8 @@ export class GuestsController {
   async search(
     @Query(new ZodValidationPipe(GuestSearchQuerySchema))
     query: typeof GuestSearchQuerySchema._output,
-  ): Promise<Guest[]> {
-    return this.uow.read((tx) => this.guests.search(tx, query.q, query.limit));
+  ): Promise<GuestSearchPage> {
+    return this.uow.read((tx) => this.guests.search(tx, query));
   }
 
   @Get(':id')

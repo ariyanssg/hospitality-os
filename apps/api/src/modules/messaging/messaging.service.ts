@@ -1,18 +1,64 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, gt, or } from 'drizzle-orm';
 import { conversations, gdprRequests, messages, uuidv7, type DbTransaction } from '@vela/db';
 import type {
-  Conversation,
+  ConversationListQuery,
+  ConversationPage,
   CreateGdprRequestInput,
   GdprRequest,
   Message,
   SendMessageInput,
   UpdateGdprRequestInput,
 } from '@vela/contracts';
-import { getRequestContext, NotFoundError, type UowHelpers } from '../kernel';
+import { env } from '../../config/env';
+import { getRequestContext, NotFoundError, ValidationError, type UowHelpers } from '../kernel';
 
 @Injectable()
 export class MessagingService {
+  private cursorSecret(): string {
+    return env().BETTER_AUTH_SECRET;
+  }
+
+  private invalidCursor(): never {
+    throw new ValidationError('Invalid cursor', [{ field: 'cursor', code: 'INVALID' }]);
+  }
+
+  private encodeConversationCursor(lastMessageAt: Date, id: string): string {
+    const payload = Buffer.from(
+      JSON.stringify({ lastMessageAt: lastMessageAt.toISOString(), id }),
+    ).toString('base64url');
+    const sig = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  private decodeConversationCursor(cursor: string): { lastMessageAt: Date; id: string } {
+    const [payload, sig] = cursor.split('.');
+    if (!payload || !sig) this.invalidCursor();
+    const expected = createHmac('sha256', this.cursorSecret()).update(payload).digest('base64url');
+    if (
+      expected.length !== sig.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    ) {
+      this.invalidCursor();
+    }
+    let parsed: { lastMessageAt?: unknown; id?: unknown };
+    try {
+      parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+        lastMessageAt?: unknown;
+        id?: unknown;
+      };
+    } catch {
+      this.invalidCursor();
+    }
+    if (typeof parsed.lastMessageAt !== 'string' || typeof parsed.id !== 'string') {
+      this.invalidCursor();
+    }
+    const lastMessageAt = new Date(parsed.lastMessageAt);
+    if (Number.isNaN(lastMessageAt.getTime())) this.invalidCursor();
+    return { lastMessageAt, id: parsed.id };
+  }
+
   async send(
     tx: DbTransaction,
     helpers: UowHelpers,
@@ -32,6 +78,19 @@ export class MessagingService {
         subject: input.subject ?? null,
         status: 'open',
       });
+    } else {
+      const [conversation] = await tx
+        .select({ id: conversations.id })
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.tenantId, ctx.tenantId),
+            eq(conversations.propertyId, propertyId),
+            eq(conversations.id, conversationId),
+          ),
+        )
+        .limit(1);
+      if (!conversation) throw new NotFoundError('Conversation');
     }
     const id = uuidv7();
     await tx.insert(messages).values({
@@ -67,8 +126,13 @@ export class MessagingService {
     return id;
   }
 
-  async inbox(tx: DbTransaction, propertyId: string, status?: string): Promise<Conversation[]> {
+  async inbox(
+    tx: DbTransaction,
+    propertyId: string,
+    query: ConversationListQuery,
+  ): Promise<ConversationPage> {
     const ctx = getRequestContext();
+    const cursor = query.cursor ? this.decodeConversationCursor(query.cursor) : undefined;
     const rows = await tx
       .select()
       .from(conversations)
@@ -76,28 +140,51 @@ export class MessagingService {
         and(
           eq(conversations.tenantId, ctx.tenantId),
           eq(conversations.propertyId, propertyId),
-          status ? eq(conversations.status, status as 'open' | 'pending' | 'closed') : undefined,
+          query.status ? eq(conversations.status, query.status) : undefined,
+          cursor
+            ? or(
+                gt(conversations.lastMessageAt, cursor.lastMessageAt),
+                and(
+                  eq(conversations.lastMessageAt, cursor.lastMessageAt),
+                  gt(conversations.id, cursor.id),
+                ),
+              )
+            : undefined,
         ),
       )
-      .orderBy(asc(conversations.lastMessageAt));
-    return rows.map((c) => ({
-      id: c.id,
-      guestId: c.guestId,
-      status: c.status,
-      channel: c.channel,
-      subject: c.subject,
-      assigneeId: c.assigneeId,
-      sentiment: c.sentiment,
-      lastMessageAt: c.lastMessageAt.toISOString(),
-    }));
+      .orderBy(asc(conversations.lastMessageAt), asc(conversations.id))
+      .limit(query.limit + 1);
+    const pageRows = rows.slice(0, query.limit);
+    const next = rows.length > query.limit ? pageRows[pageRows.length - 1] : undefined;
+    return {
+      data: pageRows.map((c) => ({
+        id: c.id,
+        guestId: c.guestId,
+        status: c.status,
+        channel: c.channel,
+        subject: c.subject,
+        assigneeId: c.assigneeId,
+        sentiment: c.sentiment,
+        lastMessageAt: c.lastMessageAt.toISOString(),
+      })),
+      meta: {
+        nextCursor: next ? this.encodeConversationCursor(next.lastMessageAt, next.id) : null,
+      },
+    };
   }
 
-  async messageDto(tx: DbTransaction, id: string): Promise<Message> {
+  async messageDto(tx: DbTransaction, id: string, propertyId?: string): Promise<Message> {
     const ctx = getRequestContext();
     const [m] = await tx
       .select()
       .from(messages)
-      .where(and(eq(messages.tenantId, ctx.tenantId), eq(messages.id, id)))
+      .where(
+        and(
+          eq(messages.tenantId, ctx.tenantId),
+          eq(messages.id, id),
+          propertyId ? eq(messages.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!m) throw new NotFoundError('Message');
     return {
@@ -147,12 +234,19 @@ export class MessagingService {
     helpers: UowHelpers,
     id: string,
     input: UpdateGdprRequestInput,
+    propertyId?: string,
   ): Promise<void> {
     const ctx = getRequestContext();
     const [row] = await tx
       .select()
       .from(gdprRequests)
-      .where(and(eq(gdprRequests.tenantId, ctx.tenantId), eq(gdprRequests.id, id)))
+      .where(
+        and(
+          eq(gdprRequests.tenantId, ctx.tenantId),
+          eq(gdprRequests.id, id),
+          propertyId ? eq(gdprRequests.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!row) throw new NotFoundError('GDPR request');
     await tx
@@ -174,12 +268,18 @@ export class MessagingService {
     });
   }
 
-  async gdprDto(tx: DbTransaction, id: string): Promise<GdprRequest> {
+  async gdprDto(tx: DbTransaction, id: string, propertyId?: string): Promise<GdprRequest> {
     const ctx = getRequestContext();
     const [r] = await tx
       .select()
       .from(gdprRequests)
-      .where(and(eq(gdprRequests.tenantId, ctx.tenantId), eq(gdprRequests.id, id)))
+      .where(
+        and(
+          eq(gdprRequests.tenantId, ctx.tenantId),
+          eq(gdprRequests.id, id),
+          propertyId ? eq(gdprRequests.propertyId, propertyId) : undefined,
+        ),
+      )
       .limit(1);
     if (!r) throw new NotFoundError('GDPR request');
     return {

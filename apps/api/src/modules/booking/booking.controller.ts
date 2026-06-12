@@ -40,41 +40,55 @@ export class BookingController {
     @Body(new ZodValidationPipe(StartBookingSessionSchema))
     body: typeof StartBookingSessionSchema._output,
   ): Promise<BookingSession> {
-    return this.uow.runIdempotent(idempotencyKey, body, async (tx, helpers) => {
-      const id = await this.booking.start(tx, helpers, requireProperty(ctx), body);
-      return BookingSessionSchema.parse(await this.booking.dto(tx, id));
+    const propertyId = requireProperty(ctx);
+    return this.uow.runIdempotent(idempotencyKey, { propertyId, ...body }, async (tx, helpers) => {
+      const id = await this.booking.start(tx, helpers, propertyId, body);
+      return BookingSessionSchema.parse(await this.booking.dto(tx, id, propertyId));
     });
   }
 
   @Get(':id')
   @RequirePermission('bookingengine.configure')
-  get(@Param('id') id: string): Promise<BookingSession> {
-    return this.uow.read((tx) => this.booking.dto(tx, id));
+  get(@Ctx() ctx: RequestContext, @Param('id') id: string): Promise<BookingSession> {
+    const propertyId = requireProperty(ctx);
+    return this.uow.read((tx) => this.booking.dto(tx, id, propertyId));
   }
 
   @Post(':id/confirm')
   @RequirePermission('reservation.create')
   confirm(
+    @Ctx() ctx: RequestContext,
     @Param('id') id: string,
     @Headers('idempotency-key') idem: string | undefined,
     @Body(new ZodValidationPipe(ConfirmBookingSessionSchema))
     body: typeof ConfirmBookingSessionSchema._output,
   ): Promise<BookingSession> {
-    return this.uow.runIdempotent(idem ?? body.idempotencyKey, body, async (tx, helpers) => {
-      await this.booking.confirm(tx, helpers, id, body.pspToken);
-      return this.booking.dto(tx, id);
-    });
+    const propertyId = requireProperty(ctx);
+    return this.uow.runIdempotent(
+      idem ?? body.idempotencyKey,
+      { propertyId, id, ...body },
+      async (tx, helpers) => {
+        await this.booking.confirm(tx, helpers, id, propertyId, body.pspToken);
+        return this.booking.dto(tx, id, propertyId);
+      },
+    );
   }
 
   @Post(':id/cancel')
   @RequirePermission('reservation.cancel')
   cancel(
+    @Ctx() ctx: RequestContext,
     @Param('id') id: string,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
   ): Promise<BookingSession> {
-    return this.uow.runIdempotent(idempotencyKey, { id, action: 'cancel' }, async (tx, helpers) => {
-      await this.booking.cancel(tx, helpers, id);
-      return this.booking.dto(tx, id);
-    });
+    const propertyId = requireProperty(ctx);
+    return this.uow.runIdempotent(
+      idempotencyKey,
+      { propertyId, id, action: 'cancel' },
+      async (tx, helpers) => {
+        await this.booking.cancel(tx, helpers, id, propertyId);
+        return this.booking.dto(tx, id, propertyId);
+      },
+    );
   }
 }
