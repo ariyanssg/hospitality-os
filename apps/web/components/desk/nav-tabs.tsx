@@ -7,6 +7,7 @@ import {
   BadgePercent,
   Ban,
   BedDouble,
+  Boxes,
   CalendarCheck,
   CalendarX,
   ContactRound,
@@ -41,6 +42,7 @@ const TABS = [
   { href: '/no-shows', label: 'No-shows', icon: CalendarX, badge: null },
   { href: '/audit', label: 'Night audit', icon: MoonStar, badge: null },
   { href: '/pos', label: 'POS terminal', icon: UtensilsCrossed, badge: null },
+  { href: '/inventory', label: 'Inventory', icon: Boxes, badge: null },
   { href: '/settings', label: 'Settings', icon: SlidersHorizontal, badge: null },
 ] as const;
 
