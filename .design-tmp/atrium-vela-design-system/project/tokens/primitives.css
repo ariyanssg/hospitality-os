@@ -1,0 +1,121 @@
+/**
+ * Atrium — Tier 1 primitives (Vela design system, doc 17 §2).
+ * Raw OKLCH ramps + scales. NEVER consumed directly by components — only the semantic tier maps
+ * these. OKLCH gives perceptually-uniform steps, so contrast stepping is guaranteed.
+ */
+:root {
+  /* ── Neutral: warm graphite (hue 250, very low chroma), not Tailwind gray ── */
+  --graphite-0: oklch(99% 0.003 250);
+  --graphite-25: oklch(98% 0.004 250);
+  --graphite-50: oklch(96.5% 0.005 250);
+  --graphite-100: oklch(93% 0.006 250);
+  --graphite-200: oklch(88% 0.008 250);
+  --graphite-300: oklch(80% 0.009 250);
+  --graphite-400: oklch(68% 0.011 250);
+  --graphite-500: oklch(58% 0.012 250);
+  --graphite-600: oklch(49% 0.012 252);
+  --graphite-700: oklch(40% 0.013 254);
+  --graphite-800: oklch(30% 0.014 256);
+  --graphite-850: oklch(25% 0.014 258);
+  --graphite-900: oklch(20% 0.015 260);
+  --graphite-950: oklch(15% 0.015 262);
+  --graphite-1000: oklch(11% 0.014 264);
+
+  /* ── Accent: a confident deep azure (the single hue) ── */
+  --accent-50: oklch(97% 0.02 245);
+  --accent-100: oklch(93% 0.04 245);
+  --accent-200: oklch(87% 0.07 245);
+  --accent-300: oklch(79% 0.1 245);
+  --accent-400: oklch(70% 0.13 248);
+  --accent-500: oklch(62% 0.155 250);
+  --accent-600: oklch(55% 0.16 252);
+  --accent-700: oklch(48% 0.15 254);
+  --accent-800: oklch(40% 0.12 256);
+  --accent-900: oklch(33% 0.09 258);
+  --accent-950: oklch(25% 0.06 260);
+
+  /* ── Fixed domain ramps (status meaning only — never decoration) ── */
+  --emerald-100: oklch(94% 0.05 162);
+  --emerald-300: oklch(82% 0.12 162);
+  --emerald-500: oklch(68% 0.16 162);
+  --emerald-600: oklch(60% 0.15 162);
+  --emerald-700: oklch(50% 0.13 162);
+
+  --amber-100: oklch(95% 0.05 85);
+  --amber-300: oklch(86% 0.12 80);
+  --amber-500: oklch(78% 0.16 75);
+  --amber-600: oklch(70% 0.16 70);
+  --amber-700: oklch(58% 0.14 65);
+
+  --rose-100: oklch(94% 0.04 18);
+  --rose-300: oklch(82% 0.11 18);
+  --rose-500: oklch(64% 0.2 22);
+  --rose-600: oklch(57% 0.21 24);
+  --rose-700: oklch(48% 0.19 25);
+
+  --sky-100: oklch(95% 0.03 230);
+  --sky-300: oklch(84% 0.09 235);
+  --sky-500: oklch(70% 0.14 240);
+  --sky-600: oklch(62% 0.15 242);
+
+  --violet-100: oklch(95% 0.03 295);
+  --violet-300: oklch(82% 0.1 295);
+  --violet-500: oklch(62% 0.19 295);
+  --violet-600: oklch(55% 0.2 296);
+
+  /* ── Spacing (4px base) ── */
+  --space-0: 0;
+  --space-0\.5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1\.5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ── Radii ── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ── Type scale (1.2 ratio) ── */
+  --text-display: 2.25rem;
+  --text-title: 1.5rem;
+  --text-heading: 1.125rem;
+  --text-body: 0.875rem;
+  --text-body-lg: 1rem;
+  --text-caption: 0.75rem;
+  --text-micro: 0.6875rem;
+
+  --font-ui: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Inter Tight', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ── Motion ── */
+  --motion-instant: 0ms; /* @kind other */
+  --motion-fast: 120ms; /* @kind other */
+  --motion-base: 200ms; /* @kind other */
+  --motion-slow: 320ms; /* @kind other */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1); /* @kind other */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1); /* @kind other */
+
+  /* ── Elevation (light) ── */
+  --shadow-e3: 0 4px 12px -2px oklch(20% 0.015 260 / 0.12), 0 2px 4px -2px oklch(20% 0.015 260 / 0.08);
+  --shadow-e4: 0 16px 40px -8px oklch(20% 0.015 260 / 0.22), 0 4px 12px -4px oklch(20% 0.015 260 / 0.12);
+
+  /* ── Z-index scale ── */
+  --z-rail: 20; /* @kind other */
+  --z-sticky: 30; /* @kind other */
+  --z-overlay: 40; /* @kind other */
+  --z-drawer: 50; /* @kind other */
+  --z-palette: 60; /* @kind other */
+  --z-toast: 70; /* @kind other */
+}

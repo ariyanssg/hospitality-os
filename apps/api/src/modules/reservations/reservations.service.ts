@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq, gt, lte } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, ilike, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import {
   businessDates,
   folios,
@@ -10,6 +10,7 @@ import {
   reservationRoomStays,
   reservationStatusLog,
   reservations,
+  roomTypes,
   rooms,
   uuidv7,
   type DbTransaction,
@@ -17,9 +18,16 @@ import {
 import type {
   ArrivalRow,
   CreateReservationInput,
+  DepartureRow,
+  InHouseRow,
+  ModifyReservationInput,
   NightAuditResult,
   Reservation,
+  ReservationListQuery,
+  ReservationListRow,
+  RoomRackRow,
   RoomTypeAvailability,
+  WalkInInput,
 } from '@vela/contracts';
 import {
   BusinessDateService,
@@ -34,6 +42,7 @@ import { AvailabilityService } from '../availability';
 import { RatesService } from '../rates';
 import { FolioService } from '../folio';
 import { GlService } from '../gl';
+import { HousekeepingService } from '../housekeeping';
 import { addDays, confirmationNumberFrom, nightsBetween } from './domain/dates';
 
 @Injectable()
@@ -44,6 +53,7 @@ export class ReservationsService {
     private readonly folio: FolioService,
     private readonly gl: GlService,
     private readonly businessDate: BusinessDateService,
+    private readonly housekeeping: HousekeepingService,
   ) {}
 
   private requireProperty(): string {
@@ -194,10 +204,26 @@ export class ReservationsService {
       .where(eq(reservations.id, id));
 
     if (roomId) {
+      const ctx = getRequestContext();
+      const [room] = await tx
+        .select({ id: rooms.id, occupancy: rooms.occupancy, roomTypeId: rooms.roomTypeId })
+        .from(rooms)
+        .where(
+          and(
+            eq(rooms.tenantId, ctx.tenantId),
+            eq(rooms.propertyId, res.propertyId),
+            eq(rooms.id, roomId),
+          ),
+        )
+        .limit(1);
+      if (!room) throw new NotFoundError('Room');
+      if (room.occupancy !== 'vacant') {
+        throw new StateConflictError('Room is occupied');
+      }
       await tx
         .update(reservationRoomStays)
         .set({ roomId })
-        .where(eq(reservationRoomStays.reservationId, id));
+        .where(and(eq(reservationRoomStays.reservationId, id), isNull(reservationRoomStays.closedAt)));
       await tx
         .update(rooms)
         .set({ occupancy: 'occupied', statusUpdatedAt: new Date() })
@@ -210,6 +236,9 @@ export class ReservationsService {
         data: { roomId, reservationId: id },
       });
     }
+
+    // Pre-arrival deposits move from the deposit ledger onto the (now active) folio.
+    await this.folio.applyHeldDeposits(tx, helpers, id);
 
     await this.logStatus(tx, res.propertyId, id, res.status, 'checked_in');
     helpers.emit({
@@ -241,11 +270,11 @@ export class ReservationsService {
       .set({ status: 'checked_out', checkedOutAt: new Date(), updatedAt: new Date() })
       .where(eq(reservations.id, id));
 
-    // Free the room (now dirty, vacant) and sync housekeeping.
+    // Free the room (now dirty, vacant) and hand it to housekeeping as a departure clean.
     const [stay] = await tx
       .select({ roomId: reservationRoomStays.roomId })
       .from(reservationRoomStays)
-      .where(eq(reservationRoomStays.reservationId, id))
+      .where(and(eq(reservationRoomStays.reservationId, id), isNull(reservationRoomStays.closedAt)))
       .limit(1);
     if (stay?.roomId) {
       await tx
@@ -258,6 +287,12 @@ export class ReservationsService {
         aggregateId: stay.roomId,
         propertyId: res.propertyId,
         data: { roomId: stay.roomId, hkStatus: 'dirty', occupancy: 'vacant' },
+      });
+      await this.housekeeping.createTask(tx, helpers, {
+        roomId: stay.roomId,
+        taskType: 'departure_clean',
+        priority: 'high',
+        reservationId: id,
       });
     }
 
@@ -312,6 +347,545 @@ export class ReservationsService {
       reason,
       propertyId: res.propertyId,
     });
+  }
+
+  /** Manual no-show (front desk), distinct from the night-audit sweep. */
+  async noShow(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    id: string,
+    reason: string | undefined,
+  ): Promise<void> {
+    const res = await this.loadReservation(tx, id);
+    if (res.status !== 'confirmed') {
+      throw new StateConflictError(`Cannot mark a ${res.status} reservation as no-show`);
+    }
+    await this.availability.release(tx, helpers, {
+      propertyId: res.propertyId,
+      roomTypeId: res.roomTypeId,
+      dates: nightsBetween(res.arrivalDate, res.departureDate),
+    });
+    await tx
+      .update(reservations)
+      .set({ status: 'no_show', updatedAt: new Date() })
+      .where(eq(reservations.id, id));
+    await this.logStatus(tx, res.propertyId, id, res.status, 'no_show', reason);
+    helpers.emit({
+      type: 'reservation.no_show',
+      aggregateType: 'reservation',
+      aggregateId: id,
+      propertyId: res.propertyId,
+      data: { reservationId: id, reason: reason ?? null },
+    });
+    helpers.audit({
+      action: 'reservation.no_show',
+      entityType: 'reservation',
+      entityId: id,
+      reason,
+      propertyId: res.propertyId,
+    });
+  }
+
+  /** Reinstate a cancelled/no-show reservation — re-walks the availability counters (may 409). */
+  async reinstate(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    id: string,
+    reason: string | undefined,
+  ): Promise<void> {
+    const res = await this.loadReservation(tx, id);
+    if (res.status !== 'cancelled' && res.status !== 'no_show') {
+      throw new StateConflictError(`Cannot reinstate a reservation in status ${res.status}`);
+    }
+    await this.availability.reserve(tx, helpers, {
+      propertyId: res.propertyId,
+      roomTypeId: res.roomTypeId,
+      dates: nightsBetween(res.arrivalDate, res.departureDate),
+    });
+    await tx
+      .update(reservations)
+      .set({ status: 'confirmed', cancelledAt: null, updatedAt: new Date() })
+      .where(eq(reservations.id, id));
+    await this.logStatus(tx, res.propertyId, id, res.status, 'confirmed', reason);
+    helpers.emit({
+      type: 'reservation.reinstated',
+      aggregateType: 'reservation',
+      aggregateId: id,
+      propertyId: res.propertyId,
+      data: { reservationId: id },
+    });
+    helpers.audit({
+      action: 'reservation.reinstate',
+      entityType: 'reservation',
+      entityId: id,
+      reason,
+      propertyId: res.propertyId,
+    });
+  }
+
+  /**
+   * Modify dates/room type/rate plan/occupancy. Inventory-affecting changes release the old
+   * stay window and re-walk the counters for the new one — same overbooking guard as booking.
+   */
+  async modify(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    id: string,
+    input: ModifyReservationInput,
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    const res = await this.loadReservation(tx, id);
+    if (res.status !== 'confirmed' && res.status !== 'tentative') {
+      throw new StateConflictError(`Cannot modify a reservation in status ${res.status}`);
+    }
+
+    const arrivalDate = input.arrivalDate ?? res.arrivalDate;
+    const departureDate = input.departureDate ?? res.departureDate;
+    const roomTypeId = input.roomTypeId ?? res.roomTypeId;
+    const ratePlanId = input.ratePlanId ?? res.ratePlanId;
+    const adults = input.adults ?? res.adults;
+    const children = input.children ?? res.children;
+
+    const inventoryChanged =
+      arrivalDate !== res.arrivalDate ||
+      departureDate !== res.departureDate ||
+      roomTypeId !== res.roomTypeId ||
+      ratePlanId !== res.ratePlanId ||
+      adults !== res.adults;
+
+    const before = {
+      arrivalDate: res.arrivalDate,
+      departureDate: res.departureDate,
+      roomTypeId: res.roomTypeId,
+      ratePlanId: res.ratePlanId,
+      adults: res.adults,
+      children: res.children,
+    };
+
+    if (inventoryChanged) {
+      const dates = nightsBetween(arrivalDate, departureDate);
+      if (dates.length === 0) {
+        throw new ValidationError('Departure must be after arrival', [
+          { field: 'departureDate', code: 'INVALID_RANGE' },
+        ]);
+      }
+
+      // Release the old window first so a same-room-type date shift can reuse its own inventory.
+      await this.availability.release(tx, helpers, {
+        propertyId: res.propertyId,
+        roomTypeId: res.roomTypeId,
+        dates: nightsBetween(res.arrivalDate, res.departureDate),
+      });
+      const stay = await this.rates.resolveStay(tx, {
+        propertyId: res.propertyId,
+        ratePlanId,
+        roomTypeId,
+        dates,
+        adults,
+      });
+      await this.availability.reserve(tx, helpers, {
+        propertyId: res.propertyId,
+        roomTypeId,
+        dates,
+      });
+
+      await tx.delete(reservationNights).where(eq(reservationNights.reservationId, id));
+      for (const night of stay.nights) {
+        await tx.insert(reservationNights).values({
+          id: uuidv7(),
+          tenantId: ctx.tenantId,
+          propertyId: res.propertyId,
+          reservationId: id,
+          stayDate: night.stayDate,
+          roomTypeId,
+          ratePlanId: night.ratePlanId,
+          price: night.price.amount,
+          currency: stay.currency,
+        });
+      }
+      await tx
+        .update(reservationRoomStays)
+        .set({ fromDate: arrivalDate, toDate: departureDate })
+        .where(and(eq(reservationRoomStays.reservationId, id), isNull(reservationRoomStays.closedAt)));
+      await tx
+        .update(reservations)
+        .set({
+          arrivalDate,
+          departureDate,
+          roomTypeId,
+          ratePlanId,
+          adults,
+          children,
+          totalAmount: stay.total.amount,
+          currency: stay.currency,
+          notes: input.notes ?? res.notes,
+          updatedAt: new Date(),
+        })
+        .where(eq(reservations.id, id));
+    } else {
+      await tx
+        .update(reservations)
+        .set({ adults, children, notes: input.notes ?? res.notes, updatedAt: new Date() })
+        .where(eq(reservations.id, id));
+    }
+
+    helpers.emit({
+      type: 'reservation.modified',
+      aggregateType: 'reservation',
+      aggregateId: id,
+      propertyId: res.propertyId,
+      data: { reservationId: id, arrivalDate, departureDate, roomTypeId, ratePlanId },
+    });
+    helpers.audit({
+      action: 'reservation.edit',
+      entityType: 'reservation',
+      entityId: id,
+      before,
+      after: { arrivalDate, departureDate, roomTypeId, ratePlanId, adults, children },
+      propertyId: res.propertyId,
+    });
+  }
+
+  /**
+   * Room move (doc modules/01): closes the current room_stay at the effective date and opens a
+   * new one — history, not overwrite. The vacated room goes dirty + gets a housekeeping task.
+   */
+  async roomMove(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    id: string,
+    input: { roomId: string; effectiveDate: string; reason?: string },
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    const res = await this.loadReservation(tx, id);
+    if (res.status !== 'checked_in') {
+      throw new StateConflictError(`Cannot move a reservation in status ${res.status}`);
+    }
+
+    const [target] = await tx
+      .select({ id: rooms.id, occupancy: rooms.occupancy, hkStatus: rooms.hkStatus })
+      .from(rooms)
+      .where(
+        and(
+          eq(rooms.tenantId, ctx.tenantId),
+          eq(rooms.propertyId, res.propertyId),
+          eq(rooms.id, input.roomId),
+        ),
+      )
+      .limit(1);
+    if (!target) throw new NotFoundError('Room');
+    if (target.occupancy !== 'vacant') throw new StateConflictError('Target room is occupied');
+
+    const [currentStay] = await tx
+      .select()
+      .from(reservationRoomStays)
+      .where(and(eq(reservationRoomStays.reservationId, id), isNull(reservationRoomStays.closedAt)))
+      .limit(1);
+    if (!currentStay) throw new StateConflictError('Reservation has no open room stay');
+    const fromRoomId = currentStay.roomId;
+    if (fromRoomId === input.roomId) {
+      throw new StateConflictError('Reservation is already in that room');
+    }
+
+    // Close the current stay segment and open the new one.
+    await tx
+      .update(reservationRoomStays)
+      .set({ toDate: input.effectiveDate, closedAt: new Date() })
+      .where(eq(reservationRoomStays.id, currentStay.id));
+    await tx.insert(reservationRoomStays).values({
+      id: uuidv7(),
+      tenantId: ctx.tenantId,
+      propertyId: res.propertyId,
+      reservationId: id,
+      roomId: input.roomId,
+      fromDate: input.effectiveDate,
+      toDate: res.departureDate,
+    });
+
+    await tx
+      .update(rooms)
+      .set({ occupancy: 'occupied', statusUpdatedAt: new Date() })
+      .where(eq(rooms.id, input.roomId));
+
+    if (fromRoomId) {
+      await tx
+        .update(rooms)
+        .set({ occupancy: 'vacant', hkStatus: 'dirty', statusUpdatedAt: new Date() })
+        .where(eq(rooms.id, fromRoomId));
+      await this.housekeeping.createTask(tx, helpers, {
+        roomId: fromRoomId,
+        taskType: 'departure_clean',
+        priority: 'high',
+        reservationId: id,
+        notes: `Room move: ${input.reason ?? 'no reason given'}`,
+      });
+    }
+
+    helpers.emit({
+      type: 'room.moved',
+      aggregateType: 'reservation',
+      aggregateId: id,
+      propertyId: res.propertyId,
+      data: {
+        reservationId: id,
+        fromRoomId,
+        toRoomId: input.roomId,
+        effectiveDate: input.effectiveDate,
+      },
+    });
+    helpers.audit({
+      action: 'room.move',
+      entityType: 'reservation',
+      entityId: id,
+      before: { roomId: fromRoomId },
+      after: { roomId: input.roomId, effectiveDate: input.effectiveDate },
+      reason: input.reason,
+      propertyId: res.propertyId,
+    });
+  }
+
+  /** Walk-in (doc modules/01): book tonight at the desk and check in immediately. */
+  async walkIn(tx: DbTransaction, helpers: UowHelpers, input: WalkInInput): Promise<string> {
+    const propertyId = this.requireProperty();
+    const businessDate = await this.businessDate.current(tx, propertyId);
+    const ratePlanId = input.ratePlanId ?? (await this.rates.defaultRatePlanId(tx, propertyId));
+    if (!ratePlanId) {
+      throw new ValidationError('No active rate plan for this property', [
+        { field: 'ratePlanId', code: 'REQUIRED' },
+      ]);
+    }
+    const id = await this.createBooking(tx, helpers, {
+      guest: input.guest,
+      arrivalDate: businessDate,
+      departureDate: input.departureDate,
+      roomTypeId: input.roomTypeId,
+      ratePlanId,
+      adults: input.adults,
+      children: input.children,
+      source: { channel: 'walk_in' },
+    });
+    await this.checkIn(tx, helpers, id, input.roomId);
+    return id;
+  }
+
+  async list(
+    tx: DbTransaction,
+    propertyId: string,
+    query: ReservationListQuery,
+  ): Promise<ReservationListRow[]> {
+    const ctx = getRequestContext();
+    const text = query.q?.trim();
+    const rows = await tx
+      .select({
+        id: reservations.id,
+        confirmationNumber: reservations.confirmationNumber,
+        status: reservations.status,
+        arrivalDate: reservations.arrivalDate,
+        departureDate: reservations.departureDate,
+        adults: reservations.adults,
+        children: reservations.children,
+        totalAmount: reservations.totalAmount,
+        currency: reservations.currency,
+        firstName: guests.firstName,
+        lastName: guests.lastName,
+      })
+      .from(reservations)
+      .innerJoin(guests, eq(guests.id, reservations.guestId))
+      .where(
+        and(
+          eq(reservations.tenantId, ctx.tenantId),
+          eq(reservations.propertyId, propertyId),
+          query.status ? eq(reservations.status, query.status) : undefined,
+          query.from ? gte(reservations.arrivalDate, query.from) : undefined,
+          query.to ? lte(reservations.arrivalDate, query.to) : undefined,
+          text
+            ? or(
+                ilike(reservations.confirmationNumber, `%${text}%`),
+                ilike(guests.lastName, `%${text}%`),
+                ilike(guests.firstName, `%${text}%`),
+                sql`(${guests.firstName} || ' ' || ${guests.lastName}) ILIKE ${`%${text}%`}`,
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(asc(reservations.arrivalDate), asc(reservations.confirmationNumber))
+      .limit(query.limit);
+
+    return rows.map((r) => ({
+      id: r.id,
+      confirmationNumber: r.confirmationNumber,
+      status: r.status,
+      guestName: `${r.firstName} ${r.lastName}`,
+      arrivalDate: r.arrivalDate,
+      departureDate: r.departureDate,
+      adults: r.adults,
+      children: r.children,
+      total: Money.of(r.totalAmount, r.currency).toJSON(),
+    }));
+  }
+
+  async departures(tx: DbTransaction, propertyId: string): Promise<DepartureRow[]> {
+    const ctx = getRequestContext();
+    const businessDate = await this.businessDate.current(tx, propertyId);
+    const rows = await tx
+      .select({
+        id: reservations.id,
+        confirmationNumber: reservations.confirmationNumber,
+        departureDate: reservations.departureDate,
+        currency: reservations.currency,
+        firstName: guests.firstName,
+        lastName: guests.lastName,
+        roomNumber: rooms.number,
+        folioBalance: folios.balance,
+      })
+      .from(reservations)
+      .innerJoin(guests, eq(guests.id, reservations.guestId))
+      .leftJoin(
+        reservationRoomStays,
+        and(
+          eq(reservationRoomStays.reservationId, reservations.id),
+          isNull(reservationRoomStays.closedAt),
+        ),
+      )
+      .leftJoin(rooms, eq(rooms.id, reservationRoomStays.roomId))
+      .leftJoin(
+        folios,
+        and(eq(folios.reservationId, reservations.id), eq(folios.status, 'open')),
+      )
+      .where(
+        and(
+          eq(reservations.tenantId, ctx.tenantId),
+          eq(reservations.propertyId, propertyId),
+          eq(reservations.status, 'checked_in'),
+          eq(reservations.departureDate, businessDate),
+        ),
+      )
+      .orderBy(asc(rooms.number));
+    return rows.map((r) => ({
+      id: r.id,
+      confirmationNumber: r.confirmationNumber,
+      guestName: `${r.firstName} ${r.lastName}`,
+      roomNumber: r.roomNumber ?? null,
+      departureDate: r.departureDate,
+      balance: Money.of(r.folioBalance ?? '0', r.currency).toJSON(),
+    }));
+  }
+
+  async inHouse(tx: DbTransaction, propertyId: string): Promise<InHouseRow[]> {
+    const ctx = getRequestContext();
+    const rows = await tx
+      .select({
+        id: reservations.id,
+        confirmationNumber: reservations.confirmationNumber,
+        arrivalDate: reservations.arrivalDate,
+        departureDate: reservations.departureDate,
+        currency: reservations.currency,
+        firstName: guests.firstName,
+        lastName: guests.lastName,
+        roomNumber: rooms.number,
+        folioBalance: folios.balance,
+      })
+      .from(reservations)
+      .innerJoin(guests, eq(guests.id, reservations.guestId))
+      .leftJoin(
+        reservationRoomStays,
+        and(
+          eq(reservationRoomStays.reservationId, reservations.id),
+          isNull(reservationRoomStays.closedAt),
+        ),
+      )
+      .leftJoin(rooms, eq(rooms.id, reservationRoomStays.roomId))
+      .leftJoin(
+        folios,
+        and(eq(folios.reservationId, reservations.id), eq(folios.status, 'open')),
+      )
+      .where(
+        and(
+          eq(reservations.tenantId, ctx.tenantId),
+          eq(reservations.propertyId, propertyId),
+          eq(reservations.status, 'checked_in'),
+        ),
+      )
+      .orderBy(asc(rooms.number));
+    return rows.map((r) => ({
+      id: r.id,
+      confirmationNumber: r.confirmationNumber,
+      guestName: `${r.firstName} ${r.lastName}`,
+      roomNumber: r.roomNumber ?? null,
+      arrivalDate: r.arrivalDate,
+      departureDate: r.departureDate,
+      balance: Money.of(r.folioBalance ?? '0', r.currency).toJSON(),
+    }));
+  }
+
+  /** Room rack: every room × the [from, to) window with its overlapping stay segments. */
+  async roomRack(
+    tx: DbTransaction,
+    propertyId: string,
+    from: string,
+    to: string,
+  ): Promise<RoomRackRow[]> {
+    const ctx = getRequestContext();
+    const roomRows = await tx
+      .select({
+        roomId: rooms.id,
+        number: rooms.number,
+        floor: rooms.floor,
+        hkStatus: rooms.hkStatus,
+        occupancy: rooms.occupancy,
+        roomTypeCode: roomTypes.code,
+      })
+      .from(rooms)
+      .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
+      .where(and(eq(rooms.tenantId, ctx.tenantId), eq(rooms.propertyId, propertyId)))
+      .orderBy(asc(rooms.number));
+
+    const stays = await tx
+      .select({
+        roomId: reservationRoomStays.roomId,
+        reservationId: reservationRoomStays.reservationId,
+        fromDate: reservationRoomStays.fromDate,
+        toDate: reservationRoomStays.toDate,
+        status: reservations.status,
+        firstName: guests.firstName,
+        lastName: guests.lastName,
+      })
+      .from(reservationRoomStays)
+      .innerJoin(reservations, eq(reservations.id, reservationRoomStays.reservationId))
+      .innerJoin(guests, eq(guests.id, reservations.guestId))
+      .where(
+        and(
+          eq(reservationRoomStays.tenantId, ctx.tenantId),
+          eq(reservationRoomStays.propertyId, propertyId),
+          inArray(reservations.status, ['confirmed', 'checked_in']),
+          lt(reservationRoomStays.fromDate, to),
+          gt(reservationRoomStays.toDate, from),
+        ),
+      );
+
+    const byRoom = new Map<string, RoomRackRow['stays']>();
+    for (const s of stays) {
+      if (!s.roomId) continue;
+      const list = byRoom.get(s.roomId) ?? [];
+      list.push({
+        reservationId: s.reservationId,
+        guestName: `${s.firstName} ${s.lastName}`,
+        status: s.status,
+        fromDate: s.fromDate,
+        toDate: s.toDate,
+      });
+      byRoom.set(s.roomId, list);
+    }
+
+    return roomRows.map((r) => ({
+      roomId: r.roomId,
+      number: r.number,
+      floor: r.floor,
+      roomTypeCode: r.roomTypeCode,
+      hkStatus: r.hkStatus,
+      occupancy: r.occupancy,
+      stays: (byRoom.get(r.roomId) ?? []).sort((a, b) => a.fromDate.localeCompare(b.fromDate)),
+    }));
   }
 
   async getDto(tx: DbTransaction, id: string): Promise<Reservation> {
@@ -370,26 +944,39 @@ export class ReservationsService {
         adults: reservations.adults,
         children: reservations.children,
         currency: reservations.currency,
+        source: reservations.source,
         firstName: guests.firstName,
         lastName: guests.lastName,
+        vipTier: guests.vipTier,
+        roomTypeCode: roomTypes.code,
         roomId: reservationRoomStays.roomId,
+        roomNumber: rooms.number,
+        roomHkStatus: rooms.hkStatus,
         folioBalance: folios.balance,
       })
       .from(reservations)
       .innerJoin(guests, eq(guests.id, reservations.guestId))
-      .leftJoin(reservationRoomStays, eq(reservationRoomStays.reservationId, reservations.id))
+      .innerJoin(roomTypes, eq(roomTypes.id, reservations.roomTypeId))
+      .leftJoin(
+        reservationRoomStays,
+        and(
+          eq(reservationRoomStays.reservationId, reservations.id),
+          isNull(reservationRoomStays.closedAt),
+        ),
+      )
+      .leftJoin(rooms, eq(rooms.id, reservationRoomStays.roomId))
       .leftJoin(folios, eq(folios.reservationId, reservations.id))
       .where(
         and(
           eq(reservations.tenantId, ctx.tenantId),
           eq(reservations.propertyId, propertyId),
           eq(reservations.arrivalDate, businessDate),
-          eq(reservations.status, 'confirmed'),
+          // Checked-in arrivals stay on the board at 5/5 readiness; only confirmed ones still need work.
+          inArray(reservations.status, ['confirmed', 'checked_in']),
         ),
       )
       .orderBy(asc(reservations.confirmationNumber));
 
-    // Room-type code lookup is omitted from the join to keep the query flat; resolved separately.
     return rows.map((r) => ({
       id: r.id,
       confirmationNumber: r.confirmationNumber,
@@ -397,11 +984,16 @@ export class ReservationsService {
       guestName: `${r.firstName} ${r.lastName}`,
       arrivalDate: r.arrivalDate,
       departureDate: r.departureDate,
-      roomTypeCode: '',
+      roomTypeCode: r.roomTypeCode,
       adults: r.adults,
       children: r.children,
       balance: Money.of(r.folioBalance ?? '0', r.currency).toJSON(),
       roomAssigned: Boolean(r.roomId),
+      roomId: r.roomId ?? null,
+      roomNumber: r.roomNumber ?? null,
+      roomHkStatus: (r.roomHkStatus ?? null) as ArrivalRow['roomHkStatus'],
+      channel: (r.source as { channel?: string } | null)?.channel ?? null,
+      vipTier: r.vipTier ?? null,
     }));
   }
 

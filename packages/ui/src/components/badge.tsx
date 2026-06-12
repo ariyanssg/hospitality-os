@@ -21,8 +21,16 @@ const badge = cva(
   },
 );
 
-export interface BadgeProps extends HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badge> {}
+export interface BadgeProps extends HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badge> {
+  /** Leading status dot in the tone's ink color — a live/state signal, not decoration. */
+  dot?: boolean;
+}
 
-export function Badge({ className, tone, ...props }: BadgeProps) {
-  return <span className={cn(badge({ tone }), className)} {...props} />;
+export function Badge({ className, tone, dot, children, ...props }: BadgeProps) {
+  return (
+    <span className={cn(badge({ tone }), className)} {...props}>
+      {dot && <span aria-hidden className="size-1.5 rounded-full bg-current" />}
+      {children}
+    </span>
+  );
 }

@@ -1,16 +1,19 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { Bell, Moon, Sun } from 'lucide-react';
+import { Bell, Moon, Rows2, Rows3, Rows4, Sun } from 'lucide-react';
 import { Button, useTheme } from '@vela/ui';
-import { useSession } from '@/lib/store';
+import { useSession, useUiPrefs } from '@/lib/store';
 import { PropertySwitcher } from './property-switcher';
 import { CommandK } from './command-k';
 
-/** Top bar (56px) — property switcher · ⌘K search · create · notifications · avatar (doc 18 §2). */
+/** Top bar (56px) — property switcher · ⌘K search · create · density · theme · bell · avatar (doc 18 §2). */
 export function TopBar() {
   const router = useRouter();
   const { theme, toggle } = useTheme();
   const me = useSession((s) => s.me);
+  const density = useUiPrefs((s) => s.density);
+  const cycleDensity = useUiPrefs((s) => s.cycleDensity);
+  const DensityIcon = density === 'compact' ? Rows4 : density === 'touch' ? Rows2 : Rows3;
   const initials = (me?.name ?? 'U')
     .split(' ')
     .map((w) => w[0])
@@ -33,6 +36,14 @@ export function TopBar() {
         <Button variant="primary" size="sm" onClick={() => router.push('/arrivals?create=1')}>
           + Create
         </Button>
+        <button
+          onClick={cycleDensity}
+          aria-label="Cycle density"
+          title={`Density: ${density}`}
+          className="grid size-8 place-items-center rounded-[var(--radius-md)] text-[var(--ink-secondary)] hover:bg-[var(--bg-sunken)]"
+        >
+          <DensityIcon className="size-4" />
+        </button>
         <button
           onClick={toggle}
           aria-label="Toggle theme"

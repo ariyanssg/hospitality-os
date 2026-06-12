@@ -1,0 +1,28 @@
+<!-- @dsCard group="Colors" viewport="700x160" name="Channels & financial" subtitle="Categorical channel hues + financial-state inks" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 18px 24px; font-family: var(--font-ui); }
+  .grp { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-tertiary); font-weight: 600; margin: 0 0 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 14px; }
+  .item { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-secondary); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+</style>
+</head>
+<body>
+  <p class="grp">Channels (categorical · direct is always accent)</p>
+  <div class="row" id="ch"></div>
+  <p class="grp">Financial states</p>
+  <div class="row" id="fin"></div>
+  <script>
+    const ch = [['direct','Direct'],['ota','OTA'],['corporate','Corporate'],['group','Group'],['walkin','Walk-in']];
+    const fin = [['posted','Posted'],['pending','Pending'],['settled','Settled'],['refund','Refund'],['overdue','Overdue']];
+    const r = (pfx,arr) => arr.map(([k,l]) => `<div class="item"><span class="dot" style="background:var(--${pfx}-${k})"></span>${l}</div>`).join('');
+    document.getElementById('ch').innerHTML = r('channel', ch);
+    document.getElementById('fin').innerHTML = r('fin', fin);
+  </script>
+</body>
+</html>

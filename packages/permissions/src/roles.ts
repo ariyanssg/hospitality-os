@@ -82,6 +82,9 @@ export const SYSTEM_ROLES: readonly RoleTemplate[] = [
       'guest.view',
       'guest.create',
       'guest.edit',
+      // Room readiness drives check-in (queue rooms) — the desk sees the board read-only.
+      'housekeeping.task.view',
+      'maintenance.ticket.view',
     ],
   },
   {
@@ -102,6 +105,7 @@ export const SYSTEM_ROLES: readonly RoleTemplate[] = [
       'nightaudit.run',
       'nightaudit.review',
       'gl.view',
+      'report.view',
       'report.financial.view',
       'auditlog.view',
     ],

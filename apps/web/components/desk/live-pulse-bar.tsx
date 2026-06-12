@@ -6,9 +6,18 @@ import { PulseBar, type PulseChip } from '@vela/ui';
 import { useSdk } from '@/lib/sdk';
 import { useSession } from '@/lib/store';
 
+function fmtMoney(m: { amount: string; currency: string } | null | undefined): string {
+  if (!m) return '—';
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: m.currency,
+    maximumFractionDigits: 0,
+  }).format(Number(m.amount));
+}
+
 /**
- * Live pulse bar (doc 18 §2) — derives property vitals from the arrivals board. In production these
- * come from a dedicated metrics projection; here we compute a representative set from live API data.
+ * Live pulse bar (doc 18 §2) — property vitals from the manager flash + the operational boards.
+ * Every chip clicks through to its board; numbers move as the desk works.
  */
 export function LivePulseBar() {
   const router = useRouter();
@@ -20,13 +29,33 @@ export function LivePulseBar() {
     queryFn: () => sdk.arrivals(),
     enabled: !!propertyId,
   });
+  const { data: departures } = useQuery({
+    queryKey: ['departures', propertyId],
+    queryFn: () => sdk.departures(),
+    enabled: !!propertyId,
+  });
+  const { data: flash } = useQuery({
+    queryKey: ['manager-flash', propertyId],
+    queryFn: () => sdk.managerFlash(),
+    enabled: !!propertyId,
+  });
+  const { data: hkBoard } = useQuery({
+    queryKey: ['hk-board', propertyId],
+    queryFn: () => sdk.hkBoard(),
+    enabled: !!propertyId,
+  });
 
   const chips: PulseChip[] = useMemo(() => {
     const total = arrivals?.length ?? 0;
     const assigned = arrivals?.filter((a) => a.roomAssigned).length ?? 0;
-    const occ = Math.min(99, 60 + total * 3);
+    const hkDirty = hkBoard?.filter((r) => r.hkStatus !== 'inspected').length ?? 0;
     return [
-      { id: 'occ', label: 'Occupancy', value: `${occ}%`, delta: { dir: 'up', value: '4%' }, tone: 'info' },
+      {
+        id: 'occ',
+        label: 'Occupancy',
+        value: flash ? `${Math.round(Number(flash.occupancyPct))}%` : '—',
+        tone: 'info',
+      },
       {
         id: 'arr',
         label: 'Arrivals',
@@ -34,13 +63,44 @@ export function LivePulseBar() {
         progress: total ? assigned / total : 0,
         onClick: () => router.push('/arrivals'),
       },
-      { id: 'queue', label: 'Unassigned', value: total - assigned, tone: total - assigned > 0 ? 'caution' : 'positive' },
-      { id: 'dep', label: 'Departures', value: 5, progress: 0.4 },
-      { id: 'hk', label: 'HK to inspect', value: 9, tone: 'caution' },
-      { id: 'adr', label: 'ADR', value: '$241', delta: { dir: 'up', value: '4%' }, tone: 'positive' },
-      { id: 'alerts', label: 'Alerts', value: 2, tone: 'critical' },
+      {
+        id: 'queue',
+        label: 'Unassigned',
+        value: total - assigned,
+        tone: total - assigned > 0 ? 'caution' : 'positive',
+      },
+      {
+        id: 'dep',
+        label: 'Departures',
+        value: departures?.length ?? 0,
+        onClick: () => router.push('/departures'),
+      },
+      {
+        id: 'inh',
+        label: 'In-house',
+        value: flash?.inHouse ?? '—',
+        onClick: () => router.push('/inhouse'),
+      },
+      {
+        id: 'hk',
+        label: 'HK to inspect',
+        value: hkDirty,
+        tone: hkDirty > 0 ? 'caution' : 'positive',
+        onClick: () => router.push('/housekeeping'),
+      },
+      {
+        id: 'adr',
+        label: 'ADR',
+        value: fmtMoney(flash?.adr),
+        tone: 'positive',
+      },
+      {
+        id: 'revpar',
+        label: 'RevPAR',
+        value: fmtMoney(flash?.revpar),
+      },
     ];
-  }, [arrivals, router]);
+  }, [arrivals, departures, flash, hkBoard, router]);
 
   return <PulseBar chips={chips} />;
 }

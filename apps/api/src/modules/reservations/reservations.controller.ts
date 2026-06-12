@@ -5,10 +5,21 @@ import {
   CheckInSchema,
   CheckOutSchema,
   CreateReservationSchema,
+  ModifyReservationSchema,
   NightAuditRunSchema,
+  NoShowSchema,
+  ReinstateSchema,
+  ReservationListQuerySchema,
+  RoomMoveSchema,
+  RoomRackQuerySchema,
+  WalkInSchema,
   type ArrivalRow,
+  type DepartureRow,
+  type InHouseRow,
   type NightAuditResult,
   type Reservation,
+  type ReservationListRow,
+  type RoomRackRow,
   type RoomTypeAvailability,
 } from '@vela/contracts';
 import {
@@ -49,10 +60,69 @@ export class ReservationsController {
     });
   }
 
+  @Get()
+  @RequirePermission('reservation.view')
+  async list(
+    @Ctx() ctx: RequestContext,
+    @Query(new ZodValidationPipe(ReservationListQuerySchema))
+    query: typeof ReservationListQuerySchema._output,
+  ): Promise<ReservationListRow[]> {
+    const propertyId = requireProperty(ctx);
+    return this.uow.read((tx) => this.reservations.list(tx, propertyId, query));
+  }
+
   @Get(':id')
   @RequirePermission('reservation.view')
   async get(@Param('id') id: string): Promise<Reservation> {
     return this.uow.read((tx) => this.reservations.getDto(tx, id));
+  }
+
+  @Post(':id/modify')
+  @RequirePermission('reservation.edit')
+  async modify(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ModifyReservationSchema)) body: typeof ModifyReservationSchema._output,
+  ): Promise<Reservation> {
+    return this.uow.run(async (tx, helpers) => {
+      await this.reservations.modify(tx, helpers, id, body);
+      return this.reservations.getDto(tx, id);
+    });
+  }
+
+  @Post(':id/no-show')
+  @RequirePermission('reservation.no_show')
+  async noShow(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(NoShowSchema)) body: typeof NoShowSchema._output,
+  ): Promise<Reservation> {
+    return this.uow.run(async (tx, helpers) => {
+      await this.reservations.noShow(tx, helpers, id, body.reason);
+      return this.reservations.getDto(tx, id);
+    });
+  }
+
+  @Post(':id/reinstate')
+  @RequirePermission('reservation.reinstate')
+  async reinstate(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ReinstateSchema)) body: typeof ReinstateSchema._output,
+  ): Promise<Reservation> {
+    return this.uow.run(async (tx, helpers) => {
+      await this.reservations.reinstate(tx, helpers, id, body.reason);
+      return this.reservations.getDto(tx, id);
+    });
+  }
+
+  @Post(':id/room-moves')
+  @RequirePermission('room.move')
+  async roomMove(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RoomMoveSchema)) body: typeof RoomMoveSchema._output,
+  ): Promise<Reservation> {
+    return this.uow.run(async (tx, helpers) => {
+      await this.reservations.roomMove(tx, helpers, id, body);
+      return this.reservations.getDto(tx, id);
+    });
   }
 
   @Post(':id/check-in')
@@ -130,6 +200,51 @@ export class FrontDeskController {
   async arrivals(@Ctx() ctx: RequestContext): Promise<ArrivalRow[]> {
     const propertyId = requireProperty(ctx);
     return this.uow.read((tx) => this.reservations.arrivals(tx, propertyId));
+  }
+
+  @Get('departures')
+  @RequirePermission('reservation.view')
+  async departures(@Ctx() ctx: RequestContext): Promise<DepartureRow[]> {
+    const propertyId = requireProperty(ctx);
+    return this.uow.read((tx) => this.reservations.departures(tx, propertyId));
+  }
+
+  @Get('in-house')
+  @RequirePermission('reservation.view')
+  async inHouse(@Ctx() ctx: RequestContext): Promise<InHouseRow[]> {
+    const propertyId = requireProperty(ctx);
+    return this.uow.read((tx) => this.reservations.inHouse(tx, propertyId));
+  }
+
+  @Get('room-rack')
+  @RequirePermission('reservation.view')
+  async roomRack(
+    @Ctx() ctx: RequestContext,
+    @Query(new ZodValidationPipe(RoomRackQuerySchema)) query: typeof RoomRackQuerySchema._output,
+  ): Promise<RoomRackRow[]> {
+    const propertyId = requireProperty(ctx);
+    return this.uow.read((tx) => this.reservations.roomRack(tx, propertyId, query.from, query.to));
+  }
+}
+
+@Controller('walk-ins')
+export class WalkInController {
+  constructor(
+    private readonly uow: UnitOfWork,
+    private readonly reservations: ReservationsService,
+  ) {}
+
+  @Post()
+  @HttpCode(201)
+  @RequirePermission('walkin.create')
+  async create(
+    @Body(new ZodValidationPipe(WalkInSchema)) body: typeof WalkInSchema._output,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<Reservation> {
+    return this.uow.runIdempotent(idempotencyKey, body, async (tx, helpers) => {
+      const id = await this.reservations.walkIn(tx, helpers, body);
+      return this.reservations.getDto(tx, id);
+    });
   }
 }
 

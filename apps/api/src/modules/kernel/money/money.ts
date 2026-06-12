@@ -90,6 +90,14 @@ export class Money {
     return new Money(roundDiv(scaled.minorUnits, 100n), this.currency);
   }
 
+  /** Divide by a positive integer count (ADR/RevPAR-style stats), half-up. */
+  dividedBy(divisor: number): Money {
+    if (!Number.isInteger(divisor) || divisor <= 0) {
+      throw new Error(`Money division requires a positive integer divisor, got ${divisor}`);
+    }
+    return new Money(roundDiv(this.minorUnits, BigInt(divisor)), this.currency);
+  }
+
   isZero(): boolean {
     return this.minorUnits === 0n;
   }

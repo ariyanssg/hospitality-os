@@ -1,0 +1,62 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Core — Button, Input, Badge, Avatar, Kbd" subtitle="Tier-A primitives across variants, sizes & states" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 22px 26px; font-family: var(--font-ui); }
+  .group { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .lab { width: 100%; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-tertiary); font-weight: 600; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel" data-presets="react">
+    const { Button, Input, Badge, Avatar, Kbd } = window.AtriumVelaDesignSystem_ec9d90;
+    function Demo() {
+      return (
+        <div>
+          <div className="group">
+            <span className="lab">Button — variants</span>
+            <Button variant="primary">Post charge</Button>
+            <Button variant="secondary">Cancel</Button>
+            <Button variant="ghost">Skip</Button>
+            <Button variant="danger">Void folio</Button>
+            <Button variant="link">View record</Button>
+            <Button loading>Checking in</Button>
+            <Button disabled>Disabled</Button>
+          </div>
+          <div className="group">
+            <span className="lab">Button — sizes</span>
+            <Button size="sm">Small</Button>
+            <Button size="md">Medium</Button>
+            <Button size="lg">Large</Button>
+          </div>
+          <div className="group">
+            <span className="lab">Input</span>
+            <div style={{width:200}}><Input placeholder="Guest name" /></div>
+            <div style={{width:140}}><Input mono placeholder="BK-1042" /></div>
+            <div style={{width:140}}><Input invalid defaultValue="bad@" /></div>
+          </div>
+          <div className="group">
+            <span className="lab">Badge · Avatar · Kbd</span>
+            <Badge tone="positive">In-house</Badge>
+            <Badge tone="caution" dot>12 in queue</Badge>
+            <Badge tone="critical">No-show</Badge>
+            <Badge tone="accent">VIP</Badge>
+            <Avatar name="Frankie Doyle" />
+            <Avatar name="Ana Lopez" presence="online" />
+            <span style={{fontSize:13,color:'var(--ink-secondary)'}}>Search <Kbd>⌘K</Kbd></span>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

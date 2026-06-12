@@ -1,0 +1,24 @@
+<!-- @dsCard group="Colors" viewport="700x170" name="Status tones" subtitle="bg / ink / line triplets · color always carries meaning" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 20px 24px; font-family: var(--font-ui); }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .chip { border: 1px solid; border-radius: var(--radius-md); padding: 12px 10px; }
+  .name { font-size: 12px; font-weight: 600; }
+  .sub { font-family: var(--font-mono); font-size: 10px; opacity: .8; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="chip" style="background:var(--status-positive-bg);border-color:var(--status-positive-line);color:var(--status-positive-ink)"><div class="name">Positive</div><div class="sub">settled · ready</div></div>
+    <div class="chip" style="background:var(--status-caution-bg);border-color:var(--status-caution-line);color:var(--status-caution-ink)"><div class="name">Caution</div><div class="sub">pending · queue</div></div>
+    <div class="chip" style="background:var(--status-critical-bg);border-color:var(--status-critical-line);color:var(--status-critical-ink)"><div class="name">Critical</div><div class="sub">overdue · alert</div></div>
+    <div class="chip" style="background:var(--status-info-bg);border-color:var(--status-info-line);color:var(--status-info-ink)"><div class="name">Info</div><div class="sub">confirmed · live</div></div>
+    <div class="chip" style="background:var(--status-neutral-bg);border-color:var(--status-neutral-line);color:var(--status-neutral-ink)"><div class="name">Neutral</div><div class="sub">default</div></div>
+  </div>
+</body>
+</html>

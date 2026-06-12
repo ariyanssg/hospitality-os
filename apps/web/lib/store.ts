@@ -35,3 +35,70 @@ export const useSession = create<SessionState>()(
 export function useCan(permission: string): boolean {
   return useSession((s) => s.me?.permissions.includes(permission) ?? false);
 }
+
+// ── UI preferences ──
+export type Density = 'comfortable' | 'compact' | 'touch';
+
+interface UiPrefsState {
+  density: Density;
+  cycleDensity: () => void;
+}
+
+/** Density is a first-class dimension (doc 17 §1.5) — cycled from the top bar, persisted. */
+export const useUiPrefs = create<UiPrefsState>()(
+  persist(
+    (set) => ({
+      density: 'comfortable',
+      cycleDensity: () =>
+        set((s) => ({
+          density: s.density === 'comfortable' ? 'compact' : s.density === 'compact' ? 'touch' : 'comfortable',
+        })),
+    }),
+    { name: 'vela-ui-prefs' },
+  ),
+);
+
+// ── Cross-page desk intents ──
+interface DeskIntentState {
+  /** Reservation queued for check-in by ⌘K — the arrivals board opens its drawer and clears it. */
+  checkinId: string | null;
+  requestCheckin: (id: string) => void;
+  clearCheckin: () => void;
+}
+
+export const useDeskIntent = create<DeskIntentState>()((set) => ({
+  checkinId: null,
+  requestCheckin: (id) => set({ checkinId: id }),
+  clearCheckin: () => set({ checkinId: null }),
+}));
+
+// ── Toasts ──
+export interface ToastState {
+  id: number;
+  text: string;
+  tone?: 'positive' | 'info' | 'critical';
+  /** Optional undo handler — renders the "Undo" affordance (doc 17: motion is the receipt). */
+  onUndo?: () => void;
+}
+
+interface ToastStore {
+  toast: ToastState | null;
+  show: (t: Omit<ToastState, 'id'>) => void;
+  dismiss: () => void;
+}
+
+let toastSeq = 0;
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+export const useToast = create<ToastStore>()((set) => ({
+  toast: null,
+  show: (t) => {
+    clearTimeout(toastTimer);
+    set({ toast: { ...t, id: ++toastSeq } });
+    toastTimer = setTimeout(() => set({ toast: null }), 4200);
+  },
+  dismiss: () => {
+    clearTimeout(toastTimer);
+    set({ toast: null });
+  },
+}));

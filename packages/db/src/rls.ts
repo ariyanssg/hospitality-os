@@ -50,7 +50,25 @@ export const TENANT_TABLES: TenantTable[] = [
   { name: 'folio_postings', property: true },
   { name: 'posting_taxes', property: true },
   { name: 'payments', property: true },
+  { name: 'deposits', property: true },
   { name: 'cashier_sessions', property: true },
+
+  { name: 'housekeeping_tasks', property: true },
+  { name: 'maintenance_tickets', property: true },
+  { name: 'room_status_log', property: true },
+
+  { name: 'pos_outlets', property: true },
+  { name: 'pos_tables', property: true },
+  { name: 'pos_checks', property: true },
+  { name: 'pos_check_items', property: true },
+  { name: 'pos_payments', property: true },
+  { name: 'pos_shifts', property: true },
+  { name: 'offline_ops', property: true },
+
+  { name: 'booking_sessions', property: true },
+  { name: 'conversations', property: true },
+  { name: 'messages', property: true },
+  { name: 'gdpr_requests', property: true },
 
   { name: 'gl_accounts', property: true, propertyNullable: true },
   { name: 'cost_centers', property: true, propertyNullable: true },

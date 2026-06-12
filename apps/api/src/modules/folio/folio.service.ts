@@ -1,15 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 import {
+  cashierSessions,
   chargeCodes,
+  deposits,
   folioPostings,
   folios,
   payments,
+  reservations,
   taxRules,
   uuidv7,
   type DbTransaction,
 } from '@vela/db';
-import type { Folio } from '@vela/contracts';
+import type { Deposit, Folio } from '@vela/contracts';
 import {
   BusinessDateService,
   getRequestContext,
@@ -97,6 +100,11 @@ export class FolioService {
     return folio;
   }
 
+  /** Cross-module read API: validate that a folio can receive same-transaction postings. */
+  async assertOpenFolio(tx: DbTransaction, folioId: string): Promise<void> {
+    await this.loadOpenFolio(tx, folioId);
+  }
+
   async postCharge(
     tx: DbTransaction,
     helpers: UowHelpers,
@@ -114,7 +122,8 @@ export class FolioService {
     if (!code) throw new NotFoundError(`Charge code ${input.chargeCode}`);
 
     const revenueAccount = input.revenueAccount ?? code.glAccountCode ?? ACCOUNT.MISC_REVENUE;
-    const businessDate = input.businessDate ?? (await this.businessDate.current(tx, folio.propertyId));
+    const businessDate =
+      input.businessDate ?? (await this.businessDate.current(tx, folio.propertyId));
     const postingId = uuidv7();
     const taxAmount = input.tax?.amount ?? Money.zero(currency);
     const grossTotal = input.amount.add(taxAmount);
@@ -202,7 +211,8 @@ export class FolioService {
     const ctx = getRequestContext();
     const folio = await this.loadOpenFolio(tx, input.folioId);
     const currency = folio.currency.trim();
-    const businessDate = input.businessDate ?? (await this.businessDate.current(tx, folio.propertyId));
+    const businessDate =
+      input.businessDate ?? (await this.businessDate.current(tx, folio.propertyId));
 
     const [code] = await tx
       .select()
@@ -233,6 +243,20 @@ export class FolioService {
       postedBy: ctx.userId,
     });
 
+    // Cash-handling accountability: the payment lands in the collector's open cashier session.
+    const [session] = await tx
+      .select({ id: cashierSessions.id })
+      .from(cashierSessions)
+      .where(
+        and(
+          eq(cashierSessions.tenantId, ctx.tenantId),
+          eq(cashierSessions.propertyId, folio.propertyId),
+          eq(cashierSessions.userId, ctx.userId ?? ''),
+          eq(cashierSessions.status, 'open'),
+        ),
+      )
+      .limit(1);
+
     await tx.insert(payments).values({
       id: paymentId,
       tenantId: ctx.tenantId,
@@ -247,6 +271,7 @@ export class FolioService {
       pspToken: input.pspToken ?? null,
       reference: input.reference ?? null,
       postingId,
+      cashierSessionId: session?.id ?? null,
     });
 
     await this.adjustBalance(tx, folio.id, folio.balance, signed, currency);
@@ -296,7 +321,10 @@ export class FolioService {
       .from(taxRules)
       .where(and(eq(taxRules.tenantId, ctx.tenantId), eq(taxRules.appliesToCategory, 'room')))
       .limit(1);
-    const tax = taxRule && !taxRule.inclusive ? input.amount.percentage(taxRule.ratePct) : Money.zero(currency);
+    const tax =
+      taxRule && !taxRule.inclusive
+        ? input.amount.percentage(taxRule.ratePct)
+        : Money.zero(currency);
     return this.postCharge(tx, helpers, {
       folioId: input.folioId,
       chargeCode: 'ROOM',
@@ -478,6 +506,359 @@ export class FolioService {
     });
   }
 
+  /** Additional folio for a reservation (splits / company routing / paymaster windows). */
+  async createFolioForReservation(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    reservationId: string,
+    type: 'guest' | 'master' | 'company' | 'paymaster',
+  ): Promise<string> {
+    const ctx = getRequestContext();
+    const [res] = await tx
+      .select({
+        id: reservations.id,
+        propertyId: reservations.propertyId,
+        guestId: reservations.guestId,
+        currency: reservations.currency,
+      })
+      .from(reservations)
+      .where(and(eq(reservations.tenantId, ctx.tenantId), eq(reservations.id, reservationId)))
+      .limit(1);
+    if (!res) throw new NotFoundError('Reservation');
+
+    const id = uuidv7();
+    await tx.insert(folios).values({
+      id,
+      tenantId: ctx.tenantId,
+      propertyId: res.propertyId,
+      folioNumber: folioNumberFrom(id),
+      reservationId,
+      guestId: res.guestId,
+      type,
+      status: 'open',
+      currency: res.currency,
+      balance: '0',
+    });
+    helpers.audit({
+      action: 'folio.create',
+      entityType: 'folio',
+      entityId: id,
+      after: { reservationId, type },
+      propertyId: res.propertyId,
+    });
+    return id;
+  }
+
+  /**
+   * Transfer a posting between folios: reversal row on the source + repost on the target — the
+   * original is never mutated (doc modules/01 folio routing). Both folios sit on the guest ledger,
+   * so no GL movement is needed; balances move in the same transaction.
+   */
+  async transferPosting(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    sourceFolioId: string,
+    postingId: string,
+    toFolioId: string,
+    reason?: string,
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    if (sourceFolioId === toFolioId) {
+      throw new StateConflictError('Source and target folios are the same');
+    }
+    const source = await this.loadOpenFolio(tx, sourceFolioId);
+    const target = await this.loadOpenFolio(tx, toFolioId);
+    if (source.currency.trim() !== target.currency.trim()) {
+      throw new StateConflictError('Folios have different currencies');
+    }
+
+    const [posting] = await tx
+      .select()
+      .from(folioPostings)
+      .where(
+        and(
+          eq(folioPostings.tenantId, ctx.tenantId),
+          eq(folioPostings.id, postingId),
+          eq(folioPostings.folioId, sourceFolioId),
+        ),
+      )
+      .limit(1);
+    if (!posting) throw new NotFoundError('Posting');
+    if (posting.sourceType === 'payment' || posting.sourceType === 'refund') {
+      throw new StateConflictError('Payments cannot be transferred between folios');
+    }
+
+    const currency = source.currency.trim();
+    const amount = Money.of(posting.amount, currency);
+
+    // Reversal on the source.
+    await tx.insert(folioPostings).values({
+      id: uuidv7(),
+      tenantId: ctx.tenantId,
+      propertyId: source.propertyId,
+      folioId: source.id,
+      businessDate: posting.businessDate,
+      chargeCodeId: posting.chargeCodeId,
+      description: `Transfer out → ${target.folioNumber}`,
+      amount: amount.negate().amount,
+      currency,
+      baseAmount: amount.negate().amount,
+      fxRate: '1',
+      quantity: posting.quantity,
+      sourceType: 'adjustment',
+      sourceId: posting.id,
+      reversesPostingId: posting.id,
+      postedBy: ctx.userId,
+    });
+
+    // Repost on the target.
+    const repostId = uuidv7();
+    await tx.insert(folioPostings).values({
+      id: repostId,
+      tenantId: ctx.tenantId,
+      propertyId: target.propertyId,
+      folioId: target.id,
+      businessDate: posting.businessDate,
+      chargeCodeId: posting.chargeCodeId,
+      description: `${posting.description} (from ${source.folioNumber})`,
+      amount: amount.amount,
+      currency,
+      baseAmount: amount.amount,
+      fxRate: '1',
+      quantity: posting.quantity,
+      sourceType: posting.sourceType,
+      sourceId: posting.id,
+      postedBy: ctx.userId,
+    });
+
+    await this.adjustBalance(tx, source.id, source.balance, amount.negate(), currency);
+    await this.adjustBalance(tx, target.id, target.balance, amount, currency);
+
+    helpers.emit({
+      type: 'folio.transferred',
+      aggregateType: 'folio',
+      aggregateId: source.id,
+      propertyId: source.propertyId,
+      data: {
+        fromFolioId: source.id,
+        toFolioId: target.id,
+        postingId,
+        repostId,
+        amount: amount.toJSON(),
+      },
+    });
+    helpers.audit({
+      action: 'folio.transfer',
+      entityType: 'folio_posting',
+      entityId: postingId,
+      after: { fromFolioId: source.id, toFolioId: target.id, amount: amount.amount },
+      reason,
+      propertyId: source.propertyId,
+    });
+  }
+
+  // ── Deposits (doc modules/01): held on the deposit ledger, auto-applied at check-in ──
+
+  async recordDeposit(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    reservationId: string,
+    input: {
+      method: 'card' | 'cash' | 'bank_transfer' | 'voucher';
+      amount: Money;
+      reference?: string;
+    },
+  ): Promise<string> {
+    const ctx = getRequestContext();
+    const [res] = await tx
+      .select({
+        id: reservations.id,
+        propertyId: reservations.propertyId,
+        status: reservations.status,
+        currency: reservations.currency,
+      })
+      .from(reservations)
+      .where(and(eq(reservations.tenantId, ctx.tenantId), eq(reservations.id, reservationId)))
+      .limit(1);
+    if (!res) throw new NotFoundError('Reservation');
+    if (res.status !== 'confirmed' && res.status !== 'tentative') {
+      throw new StateConflictError(`Cannot take a deposit on a ${res.status} reservation`);
+    }
+    if (!input.amount.isPositive()) {
+      throw new StateConflictError('Deposit amount must be positive');
+    }
+
+    const id = uuidv7();
+    await tx.insert(deposits).values({
+      id,
+      tenantId: ctx.tenantId,
+      propertyId: res.propertyId,
+      reservationId,
+      method: input.method,
+      amount: input.amount.amount,
+      currency: res.currency,
+      status: 'held',
+      reference: input.reference ?? null,
+    });
+
+    const businessDate = await this.businessDate.current(tx, res.propertyId);
+    await this.gl.postJournal(tx, {
+      propertyId: res.propertyId,
+      businessDate,
+      source: 'payment',
+      sourceId: id,
+      description: `Deposit (${input.method})`,
+      currency: res.currency.trim(),
+      lines: [
+        { accountCode: ACCOUNT.CASH, debit: input.amount },
+        { accountCode: ACCOUNT.DEPOSIT_LEDGER, credit: input.amount },
+      ],
+    });
+
+    helpers.emit({
+      type: 'deposit.recorded',
+      aggregateType: 'deposit',
+      aggregateId: id,
+      propertyId: res.propertyId,
+      data: { depositId: id, reservationId, amount: input.amount.toJSON(), method: input.method },
+    });
+    helpers.audit({
+      action: 'deposit.record',
+      entityType: 'deposit',
+      entityId: id,
+      after: { reservationId, amount: input.amount.amount, method: input.method },
+      propertyId: res.propertyId,
+    });
+    return id;
+  }
+
+  /** Apply every held deposit to the reservation's open folio (called by check-in). */
+  async applyHeldDeposits(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    reservationId: string,
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    const held = await tx
+      .select()
+      .from(deposits)
+      .where(
+        and(
+          eq(deposits.tenantId, ctx.tenantId),
+          eq(deposits.reservationId, reservationId),
+          eq(deposits.status, 'held'),
+        ),
+      );
+    if (held.length === 0) return;
+
+    const folioId = await this.openFolioIdForReservation(tx, reservationId);
+    if (!folioId)
+      throw new StateConflictError('Reservation has no open folio to apply deposits to');
+
+    for (const dep of held) {
+      const folio = await this.loadOpenFolio(tx, folioId);
+      const currency = folio.currency.trim();
+      const amount = Money.of(dep.amount, currency);
+      const businessDate = await this.businessDate.current(tx, folio.propertyId);
+
+      const [code] = await tx
+        .select()
+        .from(chargeCodes)
+        .where(and(eq(chargeCodes.tenantId, ctx.tenantId), eq(chargeCodes.code, 'PAYMENT')))
+        .limit(1);
+      if (!code) throw new NotFoundError('Charge code PAYMENT');
+
+      const postingId = uuidv7();
+      await tx.insert(folioPostings).values({
+        id: postingId,
+        tenantId: ctx.tenantId,
+        propertyId: folio.propertyId,
+        folioId: folio.id,
+        businessDate,
+        chargeCodeId: code.id,
+        description: 'Deposit applied',
+        amount: amount.negate().amount,
+        currency,
+        baseAmount: amount.negate().amount,
+        fxRate: '1',
+        quantity: '1',
+        sourceType: 'deposit',
+        sourceId: dep.id,
+        postedBy: ctx.userId,
+      });
+      await this.adjustBalance(tx, folio.id, folio.balance, amount.negate(), currency);
+
+      // Move the liability: deposit ledger → guest ledger.
+      await this.gl.postJournal(tx, {
+        propertyId: folio.propertyId,
+        businessDate,
+        source: 'payment',
+        sourceId: postingId,
+        description: 'Deposit applied at check-in',
+        currency,
+        lines: [
+          { accountCode: ACCOUNT.DEPOSIT_LEDGER, debit: amount },
+          { accountCode: ACCOUNT.GUEST_LEDGER, credit: amount },
+        ],
+      });
+
+      await tx
+        .update(deposits)
+        .set({
+          status: 'applied',
+          appliedPostingId: postingId,
+          appliedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(deposits.id, dep.id));
+
+      helpers.emit({
+        type: 'deposit.applied',
+        aggregateType: 'deposit',
+        aggregateId: dep.id,
+        propertyId: folio.propertyId,
+        data: { depositId: dep.id, reservationId, folioId: folio.id, amount: amount.toJSON() },
+      });
+    }
+  }
+
+  async listDeposits(tx: DbTransaction, reservationId: string): Promise<Deposit[]> {
+    const ctx = getRequestContext();
+    const rows = await tx
+      .select()
+      .from(deposits)
+      .where(and(eq(deposits.tenantId, ctx.tenantId), eq(deposits.reservationId, reservationId)))
+      .orderBy(asc(deposits.heldAt));
+    return rows.map((d) => ({
+      id: d.id,
+      reservationId: d.reservationId,
+      method: d.method,
+      amount: Money.of(d.amount, d.currency.trim()).toJSON(),
+      status: d.status,
+      heldAt: d.heldAt.toISOString(),
+      appliedAt: d.appliedAt?.toISOString() ?? null,
+    }));
+  }
+
+  async depositDto(tx: DbTransaction, depositId: string): Promise<Deposit> {
+    const ctx = getRequestContext();
+    const [d] = await tx
+      .select()
+      .from(deposits)
+      .where(and(eq(deposits.tenantId, ctx.tenantId), eq(deposits.id, depositId)))
+      .limit(1);
+    if (!d) throw new NotFoundError('Deposit');
+    return {
+      id: d.id,
+      reservationId: d.reservationId,
+      method: d.method,
+      amount: Money.of(d.amount, d.currency.trim()).toJSON(),
+      status: d.status,
+      heldAt: d.heldAt.toISOString(),
+      appliedAt: d.appliedAt?.toISOString() ?? null,
+    };
+  }
+
   async folioIdForPayment(tx: DbTransaction, paymentId: string): Promise<string> {
     const ctx = getRequestContext();
     const [p] = await tx
@@ -490,7 +871,10 @@ export class FolioService {
   }
 
   /** Open folio id for a reservation (used by check-in, charges, checkout). */
-  async openFolioIdForReservation(tx: DbTransaction, reservationId: string): Promise<string | null> {
+  async openFolioIdForReservation(
+    tx: DbTransaction,
+    reservationId: string,
+  ): Promise<string | null> {
     const ctx = getRequestContext();
     const [folio] = await tx
       .select({ id: folios.id })

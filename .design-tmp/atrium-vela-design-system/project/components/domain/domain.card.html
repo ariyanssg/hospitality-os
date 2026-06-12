@@ -1,0 +1,51 @@
+<!-- @dsCard group="Components" viewport="700x280" name="Domain — GuestCard, RoomStatusChip, ReservationStatusBadge" subtitle="The hospitality moat layer" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 20px 24px; font-family: var(--font-ui); }
+  .lab { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-tertiary); font-weight: 600; margin: 0 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel" data-presets="react">
+    const { GuestCard, RoomStatusChip, ReservationStatusBadge } = window.AtriumVelaDesignSystem_ec9d90;
+    function Demo() {
+      return (
+        <div>
+          <GuestCard name="Priya Patel" vip
+            summary="Deluxe Suite · 2 nights · BK-1042"
+            traits={["3rd stay","prefers high floor","allergy: nuts","late checkout"]}
+            ltv="8420.00" />
+          <div style={{height:18}} />
+          <p className="lab">RoomStatusChip — sacred colors</p>
+          <div className="row">
+            <RoomStatusChip state="vacant-clean" />
+            <RoomStatusChip state="occupied" chip />
+            <RoomStatusChip state="inspected" />
+            <RoomStatusChip state="ooo" />
+            <RoomStatusChip state="departure" chip />
+          </div>
+          <p className="lab">ReservationStatusBadge</p>
+          <div className="row">
+            <ReservationStatusBadge status="confirmed" />
+            <ReservationStatusBadge status="checked_in" />
+            <ReservationStatusBadge status="tentative" />
+            <ReservationStatusBadge status="no_show" />
+            <ReservationStatusBadge status="checked_out" />
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

@@ -50,3 +50,65 @@ export const FolioSchema = z
   })
   .openapi('Folio');
 export type Folio = z.infer<typeof FolioSchema>;
+
+/** Move a posting between folios: reversal on the source + repost on the target (immutable trail). */
+export const TransferPostingSchema = z
+  .object({ postingId: Uuid, toFolioId: Uuid, reason: z.string().optional() })
+  .openapi('TransferPosting');
+export type TransferPostingInput = z.infer<typeof TransferPostingSchema>;
+
+export const CreateFolioSchema = z
+  .object({
+    reservationId: Uuid,
+    type: z.enum(['guest', 'master', 'company', 'paymaster']).default('guest'),
+  })
+  .openapi('CreateFolio');
+export type CreateFolioInput = z.infer<typeof CreateFolioSchema>;
+
+// ── Cashier sessions ──
+export const OpenCashierSessionSchema = z
+  .object({ openingFloat: MoneySchema })
+  .openapi('OpenCashierSession');
+export type OpenCashierSessionInput = z.infer<typeof OpenCashierSessionSchema>;
+
+export const CloseCashierSessionSchema = z
+  .object({ countedTotal: MoneySchema, varianceReason: z.string().optional() })
+  .openapi('CloseCashierSession');
+export type CloseCashierSessionInput = z.infer<typeof CloseCashierSessionSchema>;
+
+export const CashierSessionSchema = z
+  .object({
+    id: Uuid,
+    status: z.enum(['open', 'closed']),
+    openingFloat: MoneySchema,
+    expectedTotal: MoneySchema.nullable(),
+    countedTotal: MoneySchema.nullable(),
+    variance: MoneySchema.nullable(),
+    openedAt: IsoDateTime,
+    closedAt: IsoDateTime.nullable(),
+  })
+  .openapi('CashierSession');
+export type CashierSession = z.infer<typeof CashierSessionSchema>;
+
+// ── Deposits ──
+export const RecordDepositSchema = z
+  .object({
+    method: z.enum(['card', 'cash', 'bank_transfer', 'voucher']),
+    amount: MoneySchema,
+    reference: z.string().optional(),
+  })
+  .openapi('RecordDeposit');
+export type RecordDepositInput = z.infer<typeof RecordDepositSchema>;
+
+export const DepositSchema = z
+  .object({
+    id: Uuid,
+    reservationId: Uuid,
+    method: z.string(),
+    amount: MoneySchema,
+    status: z.enum(['held', 'applied', 'refunded']),
+    heldAt: IsoDateTime,
+    appliedAt: IsoDateTime.nullable(),
+  })
+  .openapi('Deposit');
+export type Deposit = z.infer<typeof DepositSchema>;

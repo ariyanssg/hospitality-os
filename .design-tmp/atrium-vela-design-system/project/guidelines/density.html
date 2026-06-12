@@ -1,0 +1,23 @@
+<!-- @dsCard group="Spacing" viewport="700x170" name="Density modes" subtitle="One component, three densities · comfortable / compact / touch" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 20px 24px; font-family: var(--font-ui); }
+  .row { display: flex; gap: 26px; align-items: flex-start; }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .lab { font-family: var(--font-mono); font-size: 11px; color: var(--ink-tertiary); }
+  .ctl { display: inline-flex; align-items: center; height: var(--control-h); padding: 0 var(--space-4); border-radius: var(--radius-md); background: var(--interactive-default); color: var(--ink-inverse); font-size: var(--font-size-ui); font-weight: 500; }
+  .cell { margin-top: 6px; display: flex; align-items: center; height: var(--row-h); padding: 0 var(--cell-px); border: 1px solid var(--line-hairline); border-radius: var(--radius-sm); font-size: var(--font-size-ui); color: var(--ink-secondary); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="col"><span class="lab">comfortable</span><span class="ctl">Post charge</span><span class="cell">Row · 412 · King</span></div>
+    <div class="col" data-density="compact"><span class="lab">compact</span><span class="ctl">Post charge</span><span class="cell">Row · 412 · King</span></div>
+    <div class="col" data-density="touch"><span class="lab">touch</span><span class="ctl">Post charge</span><span class="cell">Row · 412 · King</span></div>
+  </div>
+</body>
+</html>

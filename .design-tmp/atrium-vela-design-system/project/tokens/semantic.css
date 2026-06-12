@@ -1,0 +1,153 @@
+/**
+ * Atrium — Tier 2 semantic tokens (doc 17 §2). The ONLY layer components may consume.
+ * Light theme on :root; dark theme remaps the SAME names (primitives untouched). Domain tokens
+ * (room/fin/channel) are the hospitality layer generic systems lack — color always carries meaning.
+ */
+:root {
+  /* Surfaces (3 elevation planes + sunken + overlay) */
+  --bg-canvas: var(--graphite-50);
+  --bg-surface: var(--graphite-0);
+  --bg-raised: var(--graphite-0);
+  --bg-sunken: var(--graphite-100);
+  --bg-overlay: oklch(20% 0.015 260 / 0.4);
+
+  /* Ink */
+  --ink-primary: var(--graphite-900);
+  --ink-secondary: var(--graphite-600);
+  --ink-tertiary: var(--graphite-500);
+  --ink-disabled: var(--graphite-400);
+  --ink-inverse: var(--graphite-0);
+  --ink-accent: var(--accent-600);
+
+  /* Lines */
+  --line-hairline: oklch(20% 0.015 260 / 0.08);
+  --line-strong: oklch(20% 0.015 260 / 0.16);
+  --line-focus: var(--accent-500);
+
+  /* Interactive */
+  --interactive-default: var(--accent-600);
+  --interactive-hover: var(--accent-700);
+  --interactive-active: var(--accent-800);
+  --interactive-selected: var(--accent-50);
+  --interactive-disabled: var(--graphite-200);
+
+  /* Status (bg / ink / line triplets) */
+  --status-positive-bg: var(--emerald-100);
+  --status-positive-ink: var(--emerald-700);
+  --status-positive-line: var(--emerald-300);
+  --status-caution-bg: var(--amber-100);
+  --status-caution-ink: var(--amber-700);
+  --status-caution-line: var(--amber-300);
+  --status-critical-bg: var(--rose-100);
+  --status-critical-ink: var(--rose-700);
+  --status-critical-line: var(--rose-300);
+  --status-info-bg: var(--sky-100);
+  --status-info-ink: var(--sky-600);
+  --status-info-line: var(--sky-300);
+  --status-neutral-bg: var(--graphite-100);
+  --status-neutral-ink: var(--graphite-600);
+  --status-neutral-line: var(--graphite-200);
+
+  /* Domain — room status (sacred, identical everywhere) */
+  --room-vacant-clean: var(--emerald-500);
+  --room-vacant-dirty: var(--amber-500);
+  --room-occupied: var(--accent-600);
+  --room-inspected: var(--emerald-600);
+  --room-ooo: var(--rose-600);
+  --room-oos: var(--graphite-500);
+  --room-arrival: var(--sky-500);
+  --room-departure: var(--violet-500);
+
+  /* Domain — financial states */
+  --fin-posted: var(--graphite-700);
+  --fin-pending: var(--amber-600);
+  --fin-settled: var(--emerald-600);
+  --fin-refund: var(--rose-600);
+  --fin-void: var(--graphite-400);
+  --fin-overdue: var(--rose-700);
+
+  /* Domain — channels (categorical; direct is always this hue) */
+  --channel-direct: var(--accent-600);
+  --channel-ota: var(--violet-500);
+  --channel-corporate: var(--sky-600);
+  --channel-group: var(--emerald-600);
+  --channel-walkin: var(--amber-600);
+
+  /* Density (comfortable default) — the three modes re-map only these */
+  --control-h: 2.25rem;
+  --row-h: 2.75rem;
+  --cell-px: 0.75rem;
+  --gap-xs: 0.25rem;
+  --gap-sm: 0.5rem;
+  --gap-md: 0.75rem;
+  --gap-lg: 1rem;
+  --gap-xl: 1.5rem;
+  --font-size-ui: var(--text-body);
+
+  color-scheme: light;
+}
+
+/* ── Dark theme: night auditors live here; shadows become surface-lightening ── */
+.dark {
+  --bg-canvas: var(--graphite-1000);
+  --bg-surface: var(--graphite-900);
+  --bg-raised: var(--graphite-850);
+  --bg-sunken: var(--graphite-950);
+  --bg-overlay: oklch(8% 0.014 264 / 0.6);
+
+  --ink-primary: var(--graphite-50);
+  --ink-secondary: var(--graphite-300);
+  --ink-tertiary: var(--graphite-400);
+  --ink-disabled: var(--graphite-600);
+  --ink-inverse: var(--graphite-950);
+  --ink-accent: var(--accent-300);
+
+  --line-hairline: oklch(100% 0 0 / 0.08);
+  --line-strong: oklch(100% 0 0 / 0.16);
+  --line-focus: var(--accent-400);
+
+  --interactive-default: var(--accent-500);
+  --interactive-hover: var(--accent-400);
+  --interactive-active: var(--accent-300);
+  --interactive-selected: oklch(40% 0.12 256 / 0.25);
+  --interactive-disabled: var(--graphite-700);
+
+  --status-positive-bg: oklch(50% 0.13 162 / 0.18);
+  --status-positive-ink: var(--emerald-300);
+  --status-positive-line: oklch(50% 0.13 162 / 0.35);
+  --status-caution-bg: oklch(58% 0.14 65 / 0.18);
+  --status-caution-ink: var(--amber-300);
+  --status-caution-line: oklch(58% 0.14 65 / 0.35);
+  --status-critical-bg: oklch(48% 0.19 25 / 0.2);
+  --status-critical-ink: var(--rose-300);
+  --status-critical-line: oklch(48% 0.19 25 / 0.4);
+  --status-info-bg: oklch(62% 0.15 242 / 0.18);
+  --status-info-ink: var(--sky-300);
+  --status-info-line: oklch(62% 0.15 242 / 0.35);
+  --status-neutral-bg: oklch(100% 0 0 / 0.06);
+  --status-neutral-ink: var(--graphite-300);
+  --status-neutral-line: oklch(100% 0 0 / 0.12);
+
+  --shadow-e3: 0 4px 12px -2px oklch(0% 0 0 / 0.4);
+  --shadow-e4: 0 16px 40px -8px oklch(0% 0 0 / 0.55);
+
+  color-scheme: dark;
+}
+
+/* ── Density modes (doc 17 §2, §3): re-map the density tokens only ── */
+[data-density='compact'] {
+  --control-h: 1.875rem;
+  --row-h: 2.125rem;
+  --cell-px: 0.5rem;
+  --gap-lg: 0.75rem;
+  --gap-xl: 1rem;
+  --font-size-ui: 0.8125rem;
+}
+[data-density='touch'] {
+  --control-h: 2.75rem;
+  --row-h: 3.25rem;
+  --cell-px: 1rem;
+  --gap-lg: 1.25rem;
+  --gap-xl: 1.75rem;
+  --font-size-ui: 1rem;
+}

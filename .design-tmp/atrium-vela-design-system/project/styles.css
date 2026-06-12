@@ -1,0 +1,8 @@
+/**
+ * Atrium — the Vela design system entrypoint. Consumers link this ONE file.
+ * Order matters: fonts → primitives (raw scales) → semantic (the component API) → base (resets).
+ */
+@import './tokens/fonts.css';
+@import './tokens/primitives.css';
+@import './tokens/semantic.css';
+@import './tokens/base.css';

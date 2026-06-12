@@ -1,7 +1,4 @@
-import {
-  OpenAPIRegistry,
-  OpenApiGeneratorV3,
-} from '@asteasolutions/zod-to-openapi';
+import { OpenAPIRegistry, OpenApiGeneratorV3 } from '@asteasolutions/zod-to-openapi';
 import { z } from './zod';
 import { MoneySchema, PageMetaSchema, ProblemSchema } from './common';
 import {
@@ -10,12 +7,85 @@ import {
   CheckInSchema,
   CheckOutSchema,
   CreateReservationSchema,
+  DepartureRowSchema,
+  InHouseRowSchema,
+  ModifyReservationSchema,
+  NoShowSchema,
+  ReinstateSchema,
+  ReservationListQuerySchema,
+  ReservationListRowSchema,
   ReservationSchema,
+  RoomMoveSchema,
+  RoomRackQuerySchema,
+  RoomRackRowSchema,
+  WalkInSchema,
 } from './reservations';
-import { FolioSchema, PostChargeSchema, RecordPaymentSchema, RefundSchema } from './folio';
+import {
+  CashierSessionSchema,
+  CloseCashierSessionSchema,
+  CreateFolioSchema,
+  DepositSchema,
+  FolioSchema,
+  OpenCashierSessionSchema,
+  PostChargeSchema,
+  RecordDepositSchema,
+  RecordPaymentSchema,
+  RefundSchema,
+  TransferPostingSchema,
+} from './folio';
 import { AvailabilityQuerySchema, RoomTypeAvailabilitySchema } from './availability';
 import { MeSchema } from './identity';
 import { NightAuditResultSchema, NightAuditRunSchema, TrialBalanceSchema } from './night-audit';
+import {
+  CreateHkTaskSchema,
+  CreateMaintenanceTicketSchema,
+  HkBoardRoomSchema,
+  HkTaskListQuerySchema,
+  HkTaskSchema,
+  MaintenanceTicketSchema,
+  OutOfOrderSchema,
+  RoomStatusUpdateSchema,
+} from './housekeeping';
+import {
+  PriceGridUpdateSchema,
+  RatePlanSchema,
+  RatePriceRowSchema,
+  RatePricesQuerySchema,
+} from './rates';
+import { ManagerFlashQuerySchema, ManagerFlashSchema } from './reports';
+import {
+  GuestProfileSchema,
+  GuestSchema,
+  GuestSearchQuerySchema,
+  UpdateGuestSchema,
+} from './guests';
+import {
+  AddPosItemSchema,
+  ClosePosCheckSchema,
+  ClosePosShiftSchema,
+  OfflineOpSchema,
+  OpenPosCheckSchema,
+  OpenPosShiftSchema,
+  PosCheckItemSchema,
+  PosCheckSchema,
+  PosOutletSchema,
+  PosShiftSchema,
+  PosTableSchema,
+  QueueOfflineOpSchema,
+} from './pos';
+import {
+  BookingSessionSchema,
+  ConfirmBookingSessionSchema,
+  StartBookingSessionSchema,
+} from './booking';
+import {
+  ConversationSchema,
+  CreateGdprRequestSchema,
+  GdprRequestSchema,
+  MessageSchema,
+  SendMessageSchema,
+  UpdateGdprRequestSchema,
+} from './messaging';
 
 /**
  * Code-first OpenAPI (doc 08 §7). The same Zod schemas validate the API boundary and generate this
@@ -40,10 +110,61 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     RoomTypeAvailability: RoomTypeAvailabilitySchema,
     TrialBalance: TrialBalanceSchema,
     NightAuditResult: NightAuditResultSchema,
+    ModifyReservation: ModifyReservationSchema,
+    WalkIn: WalkInSchema,
+    ReservationListRow: ReservationListRowSchema,
+    DepartureRow: DepartureRowSchema,
+    InHouseRow: InHouseRowSchema,
+    RoomRackRow: RoomRackRowSchema,
+    TransferPosting: TransferPostingSchema,
+    CreateFolio: CreateFolioSchema,
+    OpenCashierSession: OpenCashierSessionSchema,
+    CloseCashierSession: CloseCashierSessionSchema,
+    CashierSession: CashierSessionSchema,
+    RecordDeposit: RecordDepositSchema,
+    Deposit: DepositSchema,
+    HkTask: HkTaskSchema,
+    CreateHkTask: CreateHkTaskSchema,
+    HkBoardRoom: HkBoardRoomSchema,
+    RoomStatusUpdate: RoomStatusUpdateSchema,
+    OutOfOrder: OutOfOrderSchema,
+    MaintenanceTicket: MaintenanceTicketSchema,
+    CreateMaintenanceTicket: CreateMaintenanceTicketSchema,
+    RatePlan: RatePlanSchema,
+    RatePriceRow: RatePriceRowSchema,
+    PriceGridUpdate: PriceGridUpdateSchema,
+    ManagerFlash: ManagerFlashSchema,
+    Guest: GuestSchema,
+    GuestProfile: GuestProfileSchema,
+    UpdateGuest: UpdateGuestSchema,
+    PosOutlet: PosOutletSchema,
+    PosTable: PosTableSchema,
+    PosCheck: PosCheckSchema,
+    PosCheckItem: PosCheckItemSchema,
+    OpenPosCheck: OpenPosCheckSchema,
+    AddPosItem: AddPosItemSchema,
+    ClosePosCheck: ClosePosCheckSchema,
+    OpenPosShift: OpenPosShiftSchema,
+    ClosePosShift: ClosePosShiftSchema,
+    PosShift: PosShiftSchema,
+    QueueOfflineOp: QueueOfflineOpSchema,
+    OfflineOp: OfflineOpSchema,
+    StartBookingSession: StartBookingSessionSchema,
+    ConfirmBookingSession: ConfirmBookingSessionSchema,
+    BookingSession: BookingSessionSchema,
+    SendMessage: SendMessageSchema,
+    Message: MessageSchema,
+    Conversation: ConversationSchema,
+    CreateGdprRequest: CreateGdprRequestSchema,
+    UpdateGdprRequest: UpdateGdprRequestSchema,
+    GdprRequest: GdprRequestSchema,
   };
   for (const [name, schema] of Object.entries(components)) r.register(name, schema);
 
-  const propertyHeader = z.string().uuid().openapi({ param: { name: 'X-Property-Id', in: 'header' } });
+  const propertyHeader = z
+    .string()
+    .uuid()
+    .openapi({ param: { name: 'X-Property-Id', in: 'header' } });
   const idemHeader = z
     .string()
     .optional()
@@ -65,7 +186,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     method: 'get',
     path: '/availability',
     summary: 'Availability + best price per room type over a date range',
-    request: { query: AvailabilityQuerySchema, headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    request: {
+      query: AvailabilityQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
     responses: {
       200: { description: 'Availability', ...json(z.array(RoomTypeAvailabilitySchema)) },
     },
@@ -91,7 +215,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     path: '/reservations/{id}',
     summary: 'Get a reservation',
     request: { params: z.object({ id: z.string().uuid() }) },
-    responses: { 200: { description: 'Reservation', ...json(ReservationSchema) }, 404: problem('Not found') },
+    responses: {
+      200: { description: 'Reservation', ...json(ReservationSchema) },
+      404: problem('Not found'),
+    },
   });
 
   for (const [action, body] of [
@@ -116,7 +243,10 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     path: '/folios/{id}/postings',
     summary: 'Post a charge to a folio',
     request: { params: z.object({ id: z.string().uuid() }), body: json(PostChargeSchema) },
-    responses: { 201: { description: 'Folio', ...json(FolioSchema) }, 403: problem('PERMISSION_DENIED') },
+    responses: {
+      201: { description: 'Folio', ...json(FolioSchema) },
+      403: problem('PERMISSION_DENIED'),
+    },
   });
 
   r.registerPath({
@@ -135,6 +265,424 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     responses: { 200: { description: 'Arrivals', ...json(z.array(ArrivalRowSchema)) } },
   });
 
+  // ── Phase-1 reservation lifecycle ──
+  r.registerPath({
+    method: 'get',
+    path: '/reservations',
+    summary: 'List/search reservations',
+    request: {
+      query: ReservationListQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Reservations', ...json(z.array(ReservationListRowSchema)) } },
+  });
+
+  for (const [action, body] of [
+    ['modify', ModifyReservationSchema],
+    ['no-show', NoShowSchema],
+    ['reinstate', ReinstateSchema],
+    ['room-moves', RoomMoveSchema],
+  ] as const) {
+    r.registerPath({
+      method: 'post',
+      path: `/reservations/{id}/${action}`,
+      summary: `Reservation action: ${action}`,
+      request: { params: z.object({ id: z.string().uuid() }), body: json(body) },
+      responses: {
+        200: { description: 'Reservation', ...json(ReservationSchema) },
+        409: problem('STATE_CONFLICT or AVAILABILITY_CONFLICT'),
+      },
+    });
+  }
+
+  r.registerPath({
+    method: 'post',
+    path: '/walk-ins',
+    summary: 'Walk-in: book tonight and check in immediately',
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(WalkInSchema),
+    },
+    responses: {
+      201: { description: 'Reservation (checked in)', ...json(ReservationSchema) },
+      409: problem('AVAILABILITY_CONFLICT'),
+    },
+  });
+
+  r.registerPath({
+    method: 'get',
+    path: '/front-desk/departures',
+    summary: "Today's departures board",
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Departures', ...json(z.array(DepartureRowSchema)) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/front-desk/in-house',
+    summary: 'In-house guests board',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'In-house', ...json(z.array(InHouseRowSchema)) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/front-desk/room-rack',
+    summary: 'Room rack: rooms × dates grid with stays',
+    request: { query: RoomRackQuerySchema, headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Rack', ...json(z.array(RoomRackRowSchema)) } },
+  });
+
+  // ── Folio operations, cashiering, deposits ──
+  r.registerPath({
+    method: 'post',
+    path: '/folios',
+    summary: 'Create an additional folio for a reservation (splits/routing)',
+    request: { body: json(CreateFolioSchema) },
+    responses: { 201: { description: 'Folio', ...json(FolioSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/folios/{id}/transfers',
+    summary: 'Transfer a posting to another folio (reversal + repost)',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(TransferPostingSchema) },
+    responses: {
+      200: { description: 'Source folio', ...json(FolioSchema) },
+      409: problem('STATE_CONFLICT'),
+    },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/cashier-sessions',
+    summary: 'Open a cashier session',
+    request: { body: json(OpenCashierSessionSchema) },
+    responses: { 201: { description: 'Session', ...json(CashierSessionSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/cashier-sessions/{id}/close',
+    summary: 'Close a cashier session (expected vs counted, variance)',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(CloseCashierSessionSchema) },
+    responses: { 200: { description: 'Session', ...json(CashierSessionSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/reservations/{id}/deposits',
+    summary: 'Record a pre-arrival deposit (held on the deposit ledger until check-in)',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(RecordDepositSchema) },
+    responses: { 201: { description: 'Deposit', ...json(DepositSchema) } },
+  });
+
+  // ── Housekeeping & maintenance ──
+  r.registerPath({
+    method: 'get',
+    path: '/housekeeping/board',
+    summary: 'Live room-status board',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Board', ...json(z.array(HkBoardRoomSchema)) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/housekeeping/tasks',
+    summary: 'List housekeeping tasks',
+    request: {
+      query: HkTaskListQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Tasks', ...json(z.array(HkTaskSchema)) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/housekeeping/tasks',
+    summary: 'Create a housekeeping task',
+    request: { body: json(CreateHkTaskSchema) },
+    responses: { 201: { description: 'Task', ...json(HkTaskSchema) } },
+  });
+  for (const action of ['start', 'complete', 'skip'] as const) {
+    r.registerPath({
+      method: 'post',
+      path: `/housekeeping/tasks/{id}/${action}`,
+      summary: `Housekeeping task action: ${action}`,
+      request: { params: z.object({ id: z.string().uuid() }) },
+      responses: {
+        200: { description: 'Task', ...json(HkTaskSchema) },
+        409: problem('STATE_CONFLICT'),
+      },
+    });
+  }
+  r.registerPath({
+    method: 'post',
+    path: '/rooms/{id}/status',
+    summary: 'Update room housekeeping status (dirty → clean → inspected)',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(RoomStatusUpdateSchema) },
+    responses: { 200: { description: 'Room', ...json(HkBoardRoomSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/rooms/{id}/out-of-order',
+    summary: 'Place a room out of order (decrements availability, CHECK-guarded)',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(OutOfOrderSchema) },
+    responses: {
+      201: { description: 'Created', ...json(z.object({ id: z.string().uuid() })) },
+      409: problem('AVAILABILITY_CONFLICT'),
+    },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/maintenance/tickets',
+    summary: 'List maintenance tickets',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Tickets', ...json(z.array(MaintenanceTicketSchema)) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/maintenance/tickets',
+    summary: 'Report a maintenance ticket',
+    request: { body: json(CreateMaintenanceTicketSchema) },
+    responses: { 201: { description: 'Ticket', ...json(MaintenanceTicketSchema) } },
+  });
+
+  // ── Rates management ──
+  r.registerPath({
+    method: 'get',
+    path: '/rate-plans',
+    summary: 'List rate plans',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Rate plans', ...json(z.array(RatePlanSchema)) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/rate-plans/{id}/prices',
+    summary: 'Read the price grid for a rate plan',
+    request: { params: z.object({ id: z.string().uuid() }), query: RatePricesQuerySchema },
+    responses: { 200: { description: 'Prices', ...json(z.array(RatePriceRowSchema)) } },
+  });
+  r.registerPath({
+    method: 'put',
+    path: '/rate-plans/{id}/prices',
+    summary: 'Bulk price-grid upsert',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(PriceGridUpdateSchema) },
+    responses: { 200: { description: 'Updated prices', ...json(z.array(RatePriceRowSchema)) } },
+  });
+
+  // ── Reports & guests ──
+  r.registerPath({
+    method: 'get',
+    path: '/reports/manager-flash',
+    summary: 'Manager flash: occupancy, ADR, RevPAR, revenue mix for a business date',
+    request: {
+      query: ManagerFlashQuerySchema,
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+    },
+    responses: { 200: { description: 'Flash', ...json(ManagerFlashSchema) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/guests',
+    summary: 'Search guest profiles',
+    request: { query: GuestSearchQuerySchema },
+    responses: { 200: { description: 'Guests', ...json(z.array(GuestSchema)) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/guests/{id}',
+    summary: 'Guest profile with stay history',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { description: 'Guest', ...json(GuestProfileSchema) } },
+  });
+  r.registerPath({
+    method: 'patch',
+    path: '/guests/{id}',
+    summary: 'Update a guest profile',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(UpdateGuestSchema) },
+    responses: { 200: { description: 'Guest', ...json(GuestProfileSchema) } },
+  });
+
+  // ── POS v1 ──
+  r.registerPath({
+    method: 'get',
+    path: '/pos/outlets',
+    summary: 'List POS outlets',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Outlets', ...json(z.array(PosOutletSchema)) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/pos/outlets/{id}/tables',
+    summary: 'Floor plan tables for an outlet',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { description: 'Tables', ...json(z.array(PosTableSchema)) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/pos/checks',
+    summary: 'Open a POS check',
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(OpenPosCheckSchema),
+    },
+    responses: { 201: { description: 'Check', ...json(PosCheckSchema) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/pos/checks/{id}',
+    summary: 'Get a POS check',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { description: 'Check', ...json(PosCheckSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/pos/checks/{id}/items',
+    summary: 'Add an item to a POS check',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(AddPosItemSchema),
+    },
+    responses: { 200: { description: 'Check', ...json(PosCheckSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/pos/checks/{id}/fire',
+    summary: 'Fire a POS check to KDS',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+    },
+    responses: { 200: { description: 'Check', ...json(PosCheckSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/pos/checks/{id}/close',
+    summary: 'Close a POS check with payments or room charge to folio',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(ClosePosCheckSchema),
+    },
+    responses: { 200: { description: 'Check', ...json(PosCheckSchema) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/pos/kds',
+    summary: 'Kitchen display queue',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'KDS items', ...json(z.array(PosCheckItemSchema)) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/pos/kds/items/{id}/ready',
+    summary: 'Mark a KDS item ready',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+    },
+    responses: { 200: { description: 'Check', ...json(PosCheckSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/pos/shifts',
+    summary: 'Open a POS shift',
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(OpenPosShiftSchema),
+    },
+    responses: { 201: { description: 'Shift', ...json(PosShiftSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/pos/shifts/{id}/close',
+    summary: 'Close a POS shift',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(ClosePosShiftSchema),
+    },
+    responses: { 200: { description: 'Shift', ...json(PosShiftSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/pos/offline-ops',
+    summary: 'Queue an offline POS operation from a terminal',
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(QueueOfflineOpSchema),
+    },
+    responses: { 202: { description: 'Offline op', ...json(OfflineOpSchema) } },
+  });
+
+  // ── Booking engine, messaging, compliance ──
+  r.registerPath({
+    method: 'post',
+    path: '/public/booking-sessions',
+    summary: 'Start a booking-engine shopping session with quoted total',
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader, 'Idempotency-Key': idemHeader }),
+      body: json(StartBookingSessionSchema),
+    },
+    responses: { 201: { description: 'Booking session', ...json(BookingSessionSchema) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/public/booking-sessions/{id}',
+    summary: 'Get a booking-engine shopping session',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { description: 'Booking session', ...json(BookingSessionSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/public/booking-sessions/{id}/confirm',
+    summary: 'Confirm a booking session into a PMS reservation',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+      body: json(ConfirmBookingSessionSchema),
+    },
+    responses: { 200: { description: 'Booking session', ...json(BookingSessionSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/public/booking-sessions/{id}/cancel',
+    summary: 'Cancel an unconfirmed booking session',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      headers: z.object({ 'Idempotency-Key': idemHeader }),
+    },
+    responses: { 200: { description: 'Booking session', ...json(BookingSessionSchema) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/messages/send',
+    summary: 'Send a transactional guest message and attach it to the inbox',
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+      body: json(SendMessageSchema),
+    },
+    responses: { 200: { description: 'Message', ...json(MessageSchema) } },
+  });
+  r.registerPath({
+    method: 'get',
+    path: '/conversations',
+    summary: 'Guest conversation inbox',
+    request: { headers: z.object({ 'X-Property-Id': propertyHeader }) },
+    responses: { 200: { description: 'Conversations', ...json(z.array(ConversationSchema)) } },
+  });
+  r.registerPath({
+    method: 'post',
+    path: '/gdpr/requests',
+    summary: 'Create a GDPR data-subject request',
+    request: {
+      headers: z.object({ 'X-Property-Id': propertyHeader }),
+      body: json(CreateGdprRequestSchema),
+    },
+    responses: { 201: { description: 'Request', ...json(GdprRequestSchema) } },
+  });
+  r.registerPath({
+    method: 'patch',
+    path: '/gdpr/requests/{id}',
+    summary: 'Update a GDPR request status',
+    request: { params: z.object({ id: z.string().uuid() }), body: json(UpdateGdprRequestSchema) },
+    responses: { 200: { description: 'Request', ...json(GdprRequestSchema) } },
+  });
+
   r.registerPath({
     method: 'post',
     path: '/night-audit/run',
@@ -149,7 +697,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
   const generator = new OpenApiGeneratorV3(r.definitions);
   const doc = generator.generateDocument({
     openapi: '3.0.3',
-    info: { title: 'Vela API', version: '1.0.0', description: 'The Vela hospitality OS public API.' },
+    info: {
+      title: 'Vela API',
+      version: '1.0.0',
+      description: 'The Vela hospitality OS public API.',
+    },
     servers: [{ url: 'https://api.vela.dev/v1' }, { url: 'http://localhost:4000/v1' }],
   });
   return doc as unknown as Record<string, unknown>;

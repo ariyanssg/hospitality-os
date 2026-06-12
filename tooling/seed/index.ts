@@ -17,6 +17,7 @@ const ADMIN_URL =
   process.env.DATABASE_ADMIN_URL ?? 'postgres://vela_admin:vela_admin@localhost:5434/vela';
 const CURRENCY = 'USD';
 const LOGIN_EMAIL = 'frankie@grand-vela.demo';
+const GM_EMAIL = 'greta@grand-vela.demo';
 const LOGIN_PASSWORD = 'demo-password';
 
 const ymd = (d: Date): string => d.toISOString().slice(0, 10);
@@ -86,6 +87,25 @@ async function main(): Promise<void> {
                 VALUES (${uuidv7()}, ${tenantId}, ${membershipId}, ${roleId}, 'property', ${propertyId})`;
     }
 
+    // A GM with the owner role — for the manager flash, rate management, and elevated overrides.
+    const gmUserId = uuidv7();
+    const gmMembershipId = uuidv7();
+    await sql`INSERT INTO users (id, name, email, email_verified) VALUES (${gmUserId}, 'Greta Manager', ${GM_EMAIL}, true)`;
+    await sql`INSERT INTO accounts (id, user_id, account_id, provider_id, password)
+              VALUES (${uuidv7()}, ${gmUserId}, ${gmUserId}, 'credential', ${await hashPassword(LOGIN_PASSWORD)})`;
+    await sql`INSERT INTO tenant_memberships (id, tenant_id, user_id, status) VALUES (${gmMembershipId}, ${tenantId}, ${gmUserId}, 'active')`;
+    {
+      const tmpl = getSystemRole('owner')!;
+      const roleId = uuidv7();
+      await sql`INSERT INTO roles (id, tenant_id, key, name, description, is_system)
+                VALUES (${roleId}, ${tenantId}, ${tmpl.key}, ${tmpl.name}, ${tmpl.description}, true)`;
+      for (const perm of expandWildcards(tmpl.permissions)) {
+        await sql`INSERT INTO role_permissions (role_id, permission_key) VALUES (${roleId}, ${perm})`;
+      }
+      await sql`INSERT INTO role_assignments (id, tenant_id, membership_id, role_id, scope, property_id)
+                VALUES (${uuidv7()}, ${tenantId}, ${gmMembershipId}, ${roleId}, 'tenant', NULL)`;
+    }
+
     const token = `${uuidv7()}.${randomBytes(24).toString('hex')}`;
     await sql`INSERT INTO sessions (id, user_id, token, expires_at, active_tenant_id)
               VALUES (${uuidv7()}, ${userId}, ${token}, ${new Date(Date.now() + 7 * 86_400_000).toISOString()}, ${tenantId})`;
@@ -110,6 +130,10 @@ async function main(): Promise<void> {
               VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'ROOM', 'Room Charge', 'room', '4000')`;
     await sql`INSERT INTO charge_codes (id, tenant_id, property_id, code, name, category, gl_account_code)
               VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'PAYMENT', 'Payment', 'payment', '1000')`;
+    await sql`INSERT INTO charge_codes (id, tenant_id, property_id, code, name, category, gl_account_code)
+              VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'MINIBAR', 'Minibar', 'fnb', '4100')`;
+    await sql`INSERT INTO charge_codes (id, tenant_id, property_id, code, name, category, gl_account_code)
+              VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'MISC', 'Miscellaneous', 'misc', '4200')`;
     await sql`INSERT INTO tax_rules (id, tenant_id, property_id, code, name, rate_pct, inclusive, applies_to_category, gl_account_code)
               VALUES (${uuidv7()}, ${tenantId}, ${propertyId}, 'VAT', 'Occupancy Tax', '10.0000', false, 'room', '2100')`;
 
@@ -176,8 +200,8 @@ async function main(): Promise<void> {
 
     console.warn(`\n✓ Seeded "Grand Vela — Ocean Club" with ${arrivals} arrivals in ${Date.now() - t0}ms`);
     console.warn('  Sign in to The Desk with:');
-    console.warn(`    email:    ${LOGIN_EMAIL}`);
-    console.warn(`    password: ${LOGIN_PASSWORD}`);
+    console.warn(`    front desk: ${LOGIN_EMAIL} / ${LOGIN_PASSWORD}`);
+    console.warn(`    GM (owner): ${GM_EMAIL} / ${LOGIN_PASSWORD}`);
     console.warn('  Then: pnpm dev  →  http://localhost:3000\n');
   } finally {
     await close();

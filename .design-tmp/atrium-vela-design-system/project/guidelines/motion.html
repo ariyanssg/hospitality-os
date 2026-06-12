@@ -1,0 +1,32 @@
+<!-- @dsCard group="Spacing" viewport="700x170" name="Motion & live-ness" subtitle="Data settles, not chrome · row-enter highlight fades over 1.5s" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 18px 24px; font-family: var(--font-ui); }
+  .tokens { display: flex; gap: 18px; margin-bottom: 16px; }
+  .tk { font-family: var(--font-mono); font-size: 11px; color: var(--ink-tertiary); }
+  .tk b { color: var(--ink-secondary); }
+  .board { border: 1px solid var(--line-hairline); border-radius: var(--radius-md); overflow: hidden; }
+  .r { display: flex; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid var(--line-hairline); font-size: 13px; }
+  .r:last-child { border-bottom: 0; }
+  .mono { font-family: var(--font-mono); color: var(--ink-tertiary); font-size: 12px; }
+  .new { animation: atrium-row-enter 1.5s var(--ease-standard) infinite; }
+</style>
+</head>
+<body>
+  <div class="tokens">
+    <span class="tk"><b>fast</b> 120ms</span>
+    <span class="tk"><b>base</b> 200ms</span>
+    <span class="tk"><b>slow</b> 320ms</span>
+    <span class="tk"><b>ease</b> cubic-bezier(.2,0,0,1)</span>
+  </div>
+  <div class="board">
+    <div class="r new"><span>Patel, Priya — OTA booking just landed</span><span class="mono">BK-1042</span></div>
+    <div class="r"><span>Rivera, Dana</span><span class="mono">BK-1000</span></div>
+    <div class="r"><span>Nakamura, Ito</span><span class="mono">BK-1001</span></div>
+  </div>
+</body>
+</html>

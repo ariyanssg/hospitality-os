@@ -46,11 +46,7 @@ export const paymentStatus = pgEnum('payment_status', [
   'refunded',
 ]);
 
-export const roomStatusHousekeeping = pgEnum('room_hk_status', [
-  'dirty',
-  'clean',
-  'inspected',
-]);
+export const roomStatusHousekeeping = pgEnum('room_hk_status', ['dirty', 'clean', 'inspected']);
 
 export const roomOccupancy = pgEnum('room_occupancy', ['vacant', 'occupied']);
 
@@ -91,6 +87,68 @@ export const normalBalance = pgEnum('normal_balance', ['debit', 'credit']);
 export const businessDateStatus = pgEnum('business_date_status', ['open', 'closed']);
 
 export const cashierSessionStatus = pgEnum('cashier_session_status', ['open', 'closed']);
+
+export const depositStatus = pgEnum('deposit_status', ['held', 'applied', 'refunded']);
+
+export const hkTaskType = pgEnum('hk_task_type', [
+  'departure_clean',
+  'stayover',
+  'turndown',
+  'deep_clean',
+  'inspection',
+]);
+
+export const hkTaskStatus = pgEnum('hk_task_status', ['pending', 'in_progress', 'done', 'skipped']);
+
+export const maintenanceStatus = pgEnum('maintenance_status', [
+  'reported',
+  'triaged',
+  'assigned',
+  'in_progress',
+  'done',
+  'verified',
+  'cancelled',
+]);
+
+export const maintenancePriority = pgEnum('maintenance_priority', [
+  'low',
+  'medium',
+  'high',
+  'urgent',
+]);
+
+export const posCheckStatus = pgEnum('pos_check_status', ['open', 'fired', 'closed', 'voided']);
+
+export const posOrderItemStatus = pgEnum('pos_order_item_status', [
+  'new',
+  'fired',
+  'ready',
+  'served',
+  'voided',
+]);
+
+export const posShiftStatus = pgEnum('pos_shift_status', ['open', 'closed']);
+
+export const offlineOpStatus = pgEnum('offline_op_status', ['queued', 'applied', 'rejected']);
+
+export const bookingSessionStatus = pgEnum('booking_session_status', [
+  'started',
+  'confirmed',
+  'cancelled',
+  'expired',
+]);
+
+export const messageChannel = pgEnum('message_channel', ['email', 'sms']);
+
+export const conversationStatus = pgEnum('conversation_status', ['open', 'pending', 'closed']);
+
+export const gdprRequestStatus = pgEnum('gdpr_request_status', [
+  'received',
+  'verifying',
+  'processing',
+  'completed',
+  'rejected',
+]);
 
 export const assignmentScope = pgEnum('assignment_scope', ['tenant', 'property', 'department']);
 

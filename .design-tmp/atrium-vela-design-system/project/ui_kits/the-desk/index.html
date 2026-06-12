@@ -1,0 +1,28 @@
+<!-- @dsCard group="The Desk" viewport="1280x720" name="The Desk — front-desk PMS" subtitle="Interactive: sign in → arrivals board → check-in drawer · ⌘K" -->
+<!-- @startingPoint section="The Desk" subtitle="Full front-desk PMS recreation — login, arrivals, check-in, ⌘K" viewport="1280x720" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Desk — Vela</title>
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="desk.css" />
+<style>
+  html, body { height: 100%; margin: 0; }
+  #root { height: 100%; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script src="data.js"></script>
+  <script type="text/babel" data-presets="react" src="shell.jsx"></script>
+  <script type="text/babel" data-presets="react" src="screens.jsx"></script>
+  <script type="text/babel" data-presets="react" src="app.jsx"></script>
+</body>
+</html>

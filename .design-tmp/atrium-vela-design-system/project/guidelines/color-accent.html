@@ -1,0 +1,25 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Accent — deep azure" subtitle="The single hue · primary actions & active states only" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 20px 24px; font-family: var(--font-ui); }
+  .ramp { display: flex; gap: 0; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line-hairline); }
+  .sw { flex: 1; height: 64px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-family: var(--font-mono); font-size: 10px; }
+  .cap { margin-top: 10px; font-size: 12px; color: var(--ink-tertiary); }
+</style>
+</head>
+<body>
+  <div class="ramp" id="ramp"></div>
+  <div class="cap">accent-50 → accent-950 · perceptually-uniform OKLCH ramp · <b style="color:var(--ink-accent)">600 is the interactive default</b></div>
+  <script>
+    const steps = [50,100,200,300,400,500,600,700,800,900,950];
+    document.getElementById('ramp').innerHTML = steps.map(s => {
+      const light = s <= 400;
+      return `<div class="sw" style="background:var(--accent-${s});color:${light ? 'var(--graphite-900)' : 'var(--graphite-0)'}">${s}</div>`;
+    }).join('');
+  </script>
+</body>
+</html>

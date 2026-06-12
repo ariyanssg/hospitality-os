@@ -1,0 +1,14 @@
+/**
+ * Atrium — webfonts (doc 17 §3 Typography).
+ *
+ * UI face:      Inter (variable) — ss01 + tabular numerals enabled globally for data contexts.
+ * Display face: Inter Tight — the tighter, more architectural grotesk used for page titles, KPI
+ *               numerals and guest surfaces. (Substitution note: the spec's aspirational display
+ *               face is a "Söhne-class" grotesk; Inter Tight is the closest royalty-free match and
+ *               is what ships here. Swap in the licensed face by replacing --font-display.)
+ * Mono:         JetBrains Mono — IDs, confirmation codes, money in ledgers.
+ *
+ * Loaded from Google Fonts so consumers get the binaries with no local files. To self-host, drop
+ * the .woff2 files beside this file and replace the @import with local @font-face blocks.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..600&family=Inter+Tight:wght@500..700&family=JetBrains+Mono:wght@400;500;600&display=swap');

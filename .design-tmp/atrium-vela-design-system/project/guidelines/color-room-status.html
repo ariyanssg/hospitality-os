@@ -1,0 +1,27 @@
+<!-- @dsCard group="Colors" viewport="700x180" name="Room status — sacred" subtitle="Identical across rack, boards, mobile & reports · learned once" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 20px 24px; font-family: var(--font-ui); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 18px; }
+  .item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-secondary); }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+</style>
+</head>
+<body>
+  <div class="grid" id="g"></div>
+  <script>
+    const states = [
+      ['vacant-clean','Vacant · Clean'],['vacant-dirty','Vacant · Dirty'],
+      ['occupied','Occupied'],['inspected','Inspected'],
+      ['arrival','Arrival'],['departure','Departure'],
+      ['ooo','Out of order'],['oos','Out of service'],
+    ];
+    document.getElementById('g').innerHTML = states.map(([k,l]) =>
+      `<div class="item"><span class="dot" style="background:var(--room-${k})"></span>${l}</div>`).join('');
+  </script>
+</body>
+</html>

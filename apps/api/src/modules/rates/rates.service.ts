@@ -1,7 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm';
-import { ratePlans, ratePrices, type DbTransaction } from '@vela/db';
-import { getRequestContext, Money, NotFoundError, StateConflictError } from '../kernel';
+import { ratePlans, ratePrices, rateRestrictions, uuidv7, type DbTransaction } from '@vela/db';
+import type { PriceGridUpdateInput, RatePriceRow } from '@vela/contracts';
+import {
+  AvailabilityConflictError,
+  getRequestContext,
+  Money,
+  NotFoundError,
+  StateConflictError,
+  type UowHelpers,
+} from '../kernel';
+import { violatedRestriction } from './domain/restrictions';
 
 export interface ResolveStayInput {
   propertyId: string;
@@ -42,6 +51,31 @@ export class RatesService {
       .limit(1);
     if (!plan) throw new NotFoundError('Rate plan');
     const currency = plan.currency;
+
+    // Restrictions gate the stay before any price resolves (stop_sell / min_los / max_los / cta).
+    const restrictionRows = await tx
+      .select({
+        stayDate: rateRestrictions.stayDate,
+        kind: rateRestrictions.kind,
+        value: rateRestrictions.value,
+      })
+      .from(rateRestrictions)
+      .where(
+        and(
+          eq(rateRestrictions.tenantId, ctx.tenantId),
+          eq(rateRestrictions.propertyId, input.propertyId),
+          eq(rateRestrictions.ratePlanId, input.ratePlanId),
+          eq(rateRestrictions.roomTypeId, input.roomTypeId),
+          inArray(rateRestrictions.stayDate, input.dates),
+        ),
+      );
+    const violation = violatedRestriction(restrictionRows, input.dates);
+    if (violation) {
+      throw new AvailabilityConflictError(
+        `Rate is restricted for this stay (${violation.code} on ${violation.stayDate})`,
+        [{ field: 'ratePlanId', code: violation.code, stayDate: violation.stayDate }],
+      );
+    }
 
     const rows = await tx
       .select({
@@ -103,6 +137,125 @@ export class RatesService {
         ),
       );
     return new Map(rows.map((r) => [r.stayDate, Money.of(r.price, currency)]));
+  }
+
+  /** Price grid for the rates calendar UI. */
+  async priceGrid(
+    tx: DbTransaction,
+    propertyId: string,
+    ratePlanId: string,
+    from: string,
+    to: string,
+    roomTypeId?: string,
+  ): Promise<RatePriceRow[]> {
+    const ctx = getRequestContext();
+    const [plan] = await tx
+      .select({ currency: ratePlans.currency })
+      .from(ratePlans)
+      .where(and(eq(ratePlans.tenantId, ctx.tenantId), eq(ratePlans.id, ratePlanId)))
+      .limit(1);
+    if (!plan) throw new NotFoundError('Rate plan');
+    const currency = plan.currency.trim();
+
+    const rows = await tx
+      .select({
+        roomTypeId: ratePrices.roomTypeId,
+        stayDate: ratePrices.stayDate,
+        price: ratePrices.price,
+        singlePrice: ratePrices.singlePrice,
+      })
+      .from(ratePrices)
+      .where(
+        and(
+          eq(ratePrices.tenantId, ctx.tenantId),
+          eq(ratePrices.propertyId, propertyId),
+          eq(ratePrices.ratePlanId, ratePlanId),
+          roomTypeId ? eq(ratePrices.roomTypeId, roomTypeId) : undefined,
+          gte(ratePrices.stayDate, from),
+          lt(ratePrices.stayDate, to),
+        ),
+      )
+      .orderBy(asc(ratePrices.roomTypeId), asc(ratePrices.stayDate));
+
+    return rows.map((r) => ({
+      roomTypeId: r.roomTypeId,
+      stayDate: r.stayDate,
+      price: Money.of(r.price, currency).toJSON(),
+      singlePrice: r.singlePrice ? Money.of(r.singlePrice, currency).toJSON() : null,
+    }));
+  }
+
+  /** Bulk grid upsert (doc modules/01 rate management). Emits one `rate.price_changed` per call. */
+  async upsertPrices(
+    tx: DbTransaction,
+    helpers: UowHelpers,
+    propertyId: string,
+    ratePlanId: string,
+    input: PriceGridUpdateInput,
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    const [plan] = await tx
+      .select({ currency: ratePlans.currency })
+      .from(ratePlans)
+      .where(
+        and(
+          eq(ratePlans.tenantId, ctx.tenantId),
+          eq(ratePlans.id, ratePlanId),
+          eq(ratePlans.propertyId, propertyId),
+        ),
+      )
+      .limit(1);
+    if (!plan) throw new NotFoundError('Rate plan');
+    const currency = plan.currency.trim();
+
+    for (const p of input.prices) {
+      if (p.price.currency !== currency) {
+        throw new StateConflictError(
+          `Price currency ${p.price.currency} does not match the plan currency ${currency}`,
+        );
+      }
+      const price = Money.fromJSON(p.price);
+      const singlePrice = p.singlePrice ? Money.fromJSON(p.singlePrice) : null;
+      await tx
+        .insert(ratePrices)
+        .values({
+          id: uuidv7(),
+          tenantId: ctx.tenantId,
+          propertyId,
+          ratePlanId,
+          roomTypeId: p.roomTypeId,
+          stayDate: p.stayDate,
+          price: price.amount,
+          singlePrice: singlePrice?.amount ?? null,
+          currency,
+        })
+        .onConflictDoUpdate({
+          target: [
+            ratePrices.tenantId,
+            ratePrices.propertyId,
+            ratePrices.ratePlanId,
+            ratePrices.roomTypeId,
+            ratePrices.stayDate,
+          ],
+          set: { price: price.amount, singlePrice: singlePrice?.amount ?? null },
+        });
+    }
+
+    const dates = input.prices.map((p) => p.stayDate).sort();
+    helpers.emit({
+      type: 'rate.price_changed',
+      aggregateType: 'rate_plan',
+      aggregateId: ratePlanId,
+      propertyId,
+      data: { ratePlanId, count: input.prices.length, from: dates[0], to: dates[dates.length - 1] },
+    });
+    helpers.audit({
+      action: 'rate.manage',
+      entityType: 'rate_plan',
+      entityId: ratePlanId,
+      after: { pricesUpdated: input.prices.length },
+      propertyId,
+    });
   }
 
   async defaultRatePlanId(tx: DbTransaction, propertyId: string): Promise<string | null> {

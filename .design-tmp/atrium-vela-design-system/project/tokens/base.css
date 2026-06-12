@@ -1,0 +1,99 @@
+/**
+ * Atrium — base layer. Element resets + global type features + the data-change choreography
+ * keyframes (doc 17 §3 motion law). No Tailwind here — these are plain CSS so any consumer that
+ * links styles.css gets the brand baseline for free.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-color: var(--line-hairline);
+}
+
+html {
+  font-family: var(--font-ui);
+  font-feature-settings: 'ss01' 1, 'cv01' 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-canvas);
+  color: var(--ink-primary);
+  font-size: var(--font-size-ui);
+  line-height: 1.45;
+}
+
+/* Tabular numerals everywhere data lives. */
+.tnum,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Display face is set tight by default — page titles, KPI numerals. */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+:focus-visible {
+  outline: 2px solid var(--line-focus);
+  outline-offset: 2px;
+}
+
+/* Data-change choreography (doc 17 §3): new rows settle, not chrome. */
+@keyframes atrium-row-enter {
+  from {
+    background: var(--status-info-bg);
+  }
+  to {
+    background: transparent;
+  }
+}
+.animate-row-enter {
+  animation: atrium-row-enter 1.5s var(--ease-standard);
+}
+@keyframes atrium-pulse-once {
+  0%,
+  100% {
+    background: transparent;
+  }
+  35% {
+    background: var(--status-info-bg);
+  }
+}
+.animate-cell-pulse {
+  animation: atrium-pulse-once var(--motion-base) var(--ease-standard);
+}
+@keyframes atrium-drawer-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0.6;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes atrium-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

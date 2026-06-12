@@ -1,0 +1,25 @@
+<!-- @dsCard group="Brand" viewport="700x200" name="Vela logomark" subtitle="The ▲ ascent mark · accent square, clear space = ½ mark height" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 0; font-family: var(--font-ui); display: flex; }
+  .half { flex: 1; display: flex; align-items: center; gap: 14px; padding: 28px; }
+  .half.dark { background: var(--graphite-1000); }
+  .lab { font-family: var(--font-mono); font-size: 11px; color: var(--ink-tertiary); }
+  .half.dark .lab { color: var(--graphite-400); }
+  img { display: block; }
+</style>
+</head>
+<body>
+  <div class="half">
+    <img src="../assets/vela-wordmark.svg" alt="Vela" height="40" />
+  </div>
+  <div class="half dark">
+    <img src="../assets/vela-mark.svg" alt="Vela mark" width="44" height="44" />
+    <span class="lab">on canvas dark</span>
+  </div>
+</body>
+</html>

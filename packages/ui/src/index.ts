@@ -16,3 +16,5 @@ export { RoomStatusChip, type RoomState } from './components/room-status-chip';
 export { DataGrid, type DataGridProps, type ColumnDef } from './components/data-grid';
 export { CommandPalette, type CommandItem } from './components/command-palette';
 export { PulseBar, type PulseChip } from './components/pulse-bar';
+export { Avatar, type AvatarProps } from './components/avatar';
+export { StatTile, type StatTileProps } from './components/stat-tile';

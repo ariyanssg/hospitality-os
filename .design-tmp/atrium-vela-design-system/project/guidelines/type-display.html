@@ -1,0 +1,30 @@
+<!-- @dsCard group="Type" viewport="700x190" name="Display — Inter Tight" subtitle="Page titles & KPI numerals · tabular, tight tracking" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-surface); color: var(--ink-primary); padding: 22px 26px; }
+  .row { display: flex; align-items: baseline; gap: 14px; }
+  .spec { font-family: var(--font-display); letter-spacing: -0.02em; font-weight: 600; line-height: 1.05; }
+  .meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-tertiary); }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .num { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <div class="stack">
+    <div class="row">
+      <span class="spec" style="font-size:40px">The Desk</span>
+      <span class="meta">display · 36/40 · 600</span>
+    </div>
+    <div class="row">
+      <span class="spec num" style="font-size:40px; color:var(--ink-accent)">84%</span>
+      <span class="spec num" style="font-size:40px">$241</span>
+      <span class="spec num" style="font-size:40px">1,204</span>
+      <span class="meta">KPI numerals · tabular</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -6,3 +6,7 @@ export * from './rates';
 export * from './reservations';
 export * from './folio';
 export * from './gl';
+export * from './housekeeping';
+export * from './pos';
+export * from './booking';
+export * from './messaging';

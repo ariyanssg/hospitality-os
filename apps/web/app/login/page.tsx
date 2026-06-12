@@ -48,12 +48,28 @@ export default function LoginPage() {
           className="space-y-[var(--gap-lg)] rounded-[var(--radius-xl)] border border-[var(--line-hairline)] bg-[var(--bg-surface)] p-[var(--space-6)] shadow-[var(--shadow-e3)]"
         >
           <label className="block space-y-1.5">
-            <span className="text-[var(--text-caption)] font-medium text-[var(--ink-secondary)]">Email</span>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required />
+            <span className="text-[var(--text-caption)] font-medium text-[var(--ink-secondary)]">
+              Email
+            </span>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              required
+            />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-[var(--text-caption)] font-medium text-[var(--ink-secondary)]">Password</span>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+            <span className="text-[var(--text-caption)] font-medium text-[var(--ink-secondary)]">
+              Password
+            </span>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
           </label>
 
           {error && (

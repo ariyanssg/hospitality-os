@@ -1,0 +1,22 @@
+<!-- @dsCard group="Spacing" viewport="700x180" name="Elevation" subtitle="Shadows only on transient layers · e3 overlay, e4 modal/drawer" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-canvas); color: var(--ink-primary); padding: 26px 24px; font-family: var(--font-ui); }
+  .row { display: flex; gap: 22px; align-items: center; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .box { width: 130px; height: 78px; background: var(--bg-surface); border: 1px solid var(--line-hairline); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--ink-secondary); }
+  .num { font-family: var(--font-mono); font-size: 11px; color: var(--ink-tertiary); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="col"><div class="box">surface</div><span class="num">e0–e1 · hairline, no shadow</span></div>
+    <div class="col"><div class="box" style="box-shadow:var(--shadow-e3)">popover</div><span class="num">e3 · shadow-md</span></div>
+    <div class="col"><div class="box" style="box-shadow:var(--shadow-e4)">drawer / modal</div><span class="num">e4 · shadow-lg</span></div>
+  </div>
+</body>
+</html>

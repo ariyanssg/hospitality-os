@@ -428,6 +428,32 @@
           },
           "roomAssigned": {
             "type": "boolean"
+          },
+          "roomId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "roomNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "roomHkStatus": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "dirty",
+              "clean",
+              "inspected"
+            ]
+          },
+          "channel": {
+            "type": "string",
+            "nullable": true
+          },
+          "vipTier": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -441,7 +467,12 @@
           "adults",
           "children",
           "balance",
-          "roomAssigned"
+          "roomAssigned",
+          "roomId",
+          "roomNumber",
+          "roomHkStatus",
+          "channel",
+          "vipTier"
         ]
       },
       "Folio": {
@@ -770,6 +801,2057 @@
           "trialBalance"
         ]
       },
+      "ModifyReservation": {
+        "type": "object",
+        "properties": {
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ratePlanId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adults": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "children": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "WalkIn": {
+        "type": "object",
+        "properties": {
+          "guest": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "firstName": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "lastName": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "phone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "firstName",
+                  "lastName"
+                ]
+              }
+            ]
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ratePlanId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adults": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          },
+          "children": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          }
+        },
+        "required": [
+          "guest",
+          "departureDate",
+          "roomTypeId",
+          "roomId"
+        ]
+      },
+      "ReservationListRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "confirmationNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "guestName": {
+            "type": "string"
+          },
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "adults": {
+            "type": "integer"
+          },
+          "children": {
+            "type": "integer"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "id",
+          "confirmationNumber",
+          "status",
+          "guestName",
+          "arrivalDate",
+          "departureDate",
+          "adults",
+          "children",
+          "total"
+        ]
+      },
+      "DepartureRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "confirmationNumber": {
+            "type": "string"
+          },
+          "guestName": {
+            "type": "string"
+          },
+          "roomNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "id",
+          "confirmationNumber",
+          "guestName",
+          "roomNumber",
+          "departureDate",
+          "balance"
+        ]
+      },
+      "InHouseRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "confirmationNumber": {
+            "type": "string"
+          },
+          "guestName": {
+            "type": "string"
+          },
+          "roomNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "id",
+          "confirmationNumber",
+          "guestName",
+          "roomNumber",
+          "arrivalDate",
+          "departureDate",
+          "balance"
+        ]
+      },
+      "RoomRackRow": {
+        "type": "object",
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "roomTypeCode": {
+            "type": "string"
+          },
+          "hkStatus": {
+            "type": "string"
+          },
+          "occupancy": {
+            "type": "string"
+          },
+          "stays": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "reservationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "guestName": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "fromDate": {
+                  "type": "string",
+                  "format": "date",
+                  "example": "2026-07-14"
+                },
+                "toDate": {
+                  "type": "string",
+                  "format": "date",
+                  "example": "2026-07-14"
+                }
+              },
+              "required": [
+                "reservationId",
+                "guestName",
+                "status",
+                "fromDate",
+                "toDate"
+              ]
+            }
+          }
+        },
+        "required": [
+          "roomId",
+          "number",
+          "floor",
+          "roomTypeCode",
+          "hkStatus",
+          "occupancy",
+          "stays"
+        ]
+      },
+      "TransferPosting": {
+        "type": "object",
+        "properties": {
+          "postingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toFolioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "postingId",
+          "toFolioId"
+        ]
+      },
+      "CreateFolio": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "guest",
+              "master",
+              "company",
+              "paymaster"
+            ],
+            "default": "guest"
+          }
+        },
+        "required": [
+          "reservationId"
+        ]
+      },
+      "OpenCashierSession": {
+        "type": "object",
+        "properties": {
+          "openingFloat": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "openingFloat"
+        ]
+      },
+      "CloseCashierSession": {
+        "type": "object",
+        "properties": {
+          "countedTotal": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "varianceReason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "countedTotal"
+        ]
+      },
+      "CashierSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ]
+          },
+          "openingFloat": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "expectedTotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "countedTotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "variance": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "openingFloat",
+          "expectedTotal",
+          "countedTotal",
+          "variance",
+          "openedAt",
+          "closedAt"
+        ]
+      },
+      "RecordDeposit": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "card",
+              "cash",
+              "bank_transfer",
+              "voucher"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "reference": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "amount"
+        ]
+      },
+      "Deposit": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "method": {
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "held",
+              "applied",
+              "refunded"
+            ]
+          },
+          "heldAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "appliedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "reservationId",
+          "method",
+          "amount",
+          "status",
+          "heldAt",
+          "appliedAt"
+        ]
+      },
+      "HkTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomNumber": {
+            "type": "string"
+          },
+          "reservationId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "taskType": {
+            "type": "string",
+            "enum": [
+              "departure_clean",
+              "stayover",
+              "turndown",
+              "deep_clean",
+              "inspection"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "done",
+              "skipped"
+            ]
+          },
+          "priority": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "assignedTo": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "roomId",
+          "roomNumber",
+          "reservationId",
+          "taskType",
+          "status",
+          "priority",
+          "dueDate",
+          "assignedTo",
+          "notes",
+          "startedAt",
+          "completedAt"
+        ]
+      },
+      "CreateHkTask": {
+        "type": "object",
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskType": {
+            "type": "string",
+            "enum": [
+              "departure_clean",
+              "stayover",
+              "turndown",
+              "deep_clean",
+              "inspection"
+            ]
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "queue",
+              "high",
+              "normal",
+              "low"
+            ],
+            "default": "normal"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "assignedTo": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "roomId",
+          "taskType"
+        ]
+      },
+      "HkBoardRoom": {
+        "type": "object",
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string",
+            "nullable": true
+          },
+          "roomTypeCode": {
+            "type": "string"
+          },
+          "hkStatus": {
+            "type": "string",
+            "enum": [
+              "dirty",
+              "clean",
+              "inspected"
+            ]
+          },
+          "occupancy": {
+            "type": "string",
+            "enum": [
+              "vacant",
+              "occupied"
+            ]
+          },
+          "openTask": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "taskType": {
+                "type": "string",
+                "enum": [
+                  "departure_clean",
+                  "stayover",
+                  "turndown",
+                  "deep_clean",
+                  "inspection"
+                ]
+              },
+              "status": {
+                "type": "string"
+              },
+              "priority": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "taskType",
+              "status",
+              "priority"
+            ]
+          }
+        },
+        "required": [
+          "roomId",
+          "number",
+          "floor",
+          "roomTypeCode",
+          "hkStatus",
+          "occupancy",
+          "openTask"
+        ]
+      },
+      "RoomStatusUpdate": {
+        "type": "object",
+        "properties": {
+          "hkStatus": {
+            "type": "string",
+            "enum": [
+              "dirty",
+              "clean",
+              "inspected"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hkStatus"
+        ]
+      },
+      "OutOfOrder": {
+        "type": "object",
+        "properties": {
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "out_of_order",
+              "out_of_service"
+            ],
+            "default": "out_of_order"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fromDate",
+          "toDate"
+        ]
+      },
+      "MaintenanceTicket": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "roomNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "urgent"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reported",
+              "triaged",
+              "assigned",
+              "in_progress",
+              "done",
+              "verified",
+              "cancelled"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedTo": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "roomId",
+          "roomNumber",
+          "category",
+          "priority",
+          "status",
+          "title",
+          "description",
+          "assignedTo",
+          "createdAt",
+          "closedAt"
+        ]
+      },
+      "CreateMaintenanceTicket": {
+        "type": "object",
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "urgent"
+            ],
+            "default": "medium"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "title"
+        ]
+      },
+      "RatePlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "type",
+          "currency",
+          "isActive"
+        ]
+      },
+      "RatePriceRow": {
+        "type": "object",
+        "properties": {
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stayDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "singlePrice": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "roomTypeId",
+          "stayDate",
+          "price",
+          "singlePrice"
+        ]
+      },
+      "PriceGridUpdate": {
+        "type": "object",
+        "properties": {
+          "prices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "roomTypeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "stayDate": {
+                  "type": "string",
+                  "format": "date",
+                  "example": "2026-07-14"
+                },
+                "price": {
+                  "$ref": "#/components/schemas/Money"
+                },
+                "singlePrice": {
+                  "$ref": "#/components/schemas/Money"
+                }
+              },
+              "required": [
+                "roomTypeId",
+                "stayDate",
+                "price"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 1000
+          }
+        },
+        "required": [
+          "prices"
+        ]
+      },
+      "ManagerFlash": {
+        "type": "object",
+        "properties": {
+          "propertyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "businessDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "physicalRooms": {
+            "type": "integer"
+          },
+          "occupiedRooms": {
+            "type": "integer"
+          },
+          "occupancyPct": {
+            "type": "string"
+          },
+          "arrivalsToday": {
+            "type": "integer"
+          },
+          "departuresToday": {
+            "type": "integer"
+          },
+          "inHouse": {
+            "type": "integer"
+          },
+          "roomRevenue": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "totalRevenue": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "adr": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "revpar": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "paymentsByMethod": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string"
+                },
+                "total": {
+                  "$ref": "#/components/schemas/Money"
+                }
+              },
+              "required": [
+                "method",
+                "total"
+              ]
+            }
+          },
+          "revenueByAccount": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "accountCode": {
+                  "type": "string"
+                },
+                "accountName": {
+                  "type": "string"
+                },
+                "total": {
+                  "$ref": "#/components/schemas/Money"
+                }
+              },
+              "required": [
+                "accountCode",
+                "accountName",
+                "total"
+              ]
+            }
+          }
+        },
+        "required": [
+          "propertyId",
+          "businessDate",
+          "physicalRooms",
+          "occupiedRooms",
+          "occupancyPct",
+          "arrivalsToday",
+          "departuresToday",
+          "inHouse",
+          "roomRevenue",
+          "totalRevenue",
+          "adr",
+          "revpar",
+          "paymentsByMethod",
+          "revenueByAccount"
+        ]
+      },
+      "Guest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "vipTier": {
+            "type": "string",
+            "nullable": true
+          },
+          "nationality": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "email",
+          "phone",
+          "vipTier",
+          "nationality"
+        ]
+      },
+      "GuestProfile": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Guest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reservations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "confirmationNumber": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "arrivalDate": {
+                      "type": "string",
+                      "format": "date",
+                      "example": "2026-07-14"
+                    },
+                    "departureDate": {
+                      "type": "string",
+                      "format": "date",
+                      "example": "2026-07-14"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "confirmationNumber",
+                    "status",
+                    "arrivalDate",
+                    "departureDate"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "reservations"
+            ]
+          }
+        ]
+      },
+      "UpdateGuest": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lastName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "vipTier": {
+            "type": "string",
+            "nullable": true
+          },
+          "nationality": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PosOutlet": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "currency"
+        ]
+      },
+      "PosTable": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outletId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "section": {
+            "type": "string",
+            "nullable": true
+          },
+          "seats": {
+            "type": "integer"
+          },
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "outletId",
+          "label",
+          "section",
+          "seats",
+          "x",
+          "y"
+        ]
+      },
+      "PosCheckItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "course": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "unitPrice": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "lineTotal": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "fired",
+              "ready",
+              "served",
+              "voided"
+            ]
+          },
+          "firedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "readyAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "course",
+          "quantity",
+          "unitPrice",
+          "lineTotal",
+          "status",
+          "firedAt",
+          "readyAt"
+        ]
+      },
+      "PosCheck": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outletId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "checkNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "fired",
+              "closed",
+              "voided"
+            ]
+          },
+          "covers": {
+            "type": "integer"
+          },
+          "subtotal": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "discountTotal": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "taxTotal": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "roomFolioId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosCheckItem"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "outletId",
+          "tableId",
+          "checkNumber",
+          "status",
+          "covers",
+          "subtotal",
+          "discountTotal",
+          "taxTotal",
+          "total",
+          "roomFolioId",
+          "items"
+        ]
+      },
+      "OpenPosCheck": {
+        "type": "object",
+        "properties": {
+          "outletId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "covers": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "default": 1
+          }
+        },
+        "required": [
+          "outletId"
+        ]
+      },
+      "AddPosItem": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "course": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "default": 1
+          },
+          "unitPrice": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "name",
+          "unitPrice"
+        ]
+      },
+      "PosPayment": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "card",
+              "cash",
+              "bank_transfer",
+              "ar_transfer",
+              "voucher"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "reference": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "amount"
+        ]
+      },
+      "ClosePosCheck": {
+        "type": "object",
+        "properties": {
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosPayment"
+            },
+            "default": []
+          },
+          "roomFolioId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "OpenPosShift": {
+        "type": "object",
+        "properties": {
+          "outletId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "outletId"
+        ]
+      },
+      "ClosePosShift": {
+        "type": "object",
+        "properties": {
+          "countedTotal": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "countedTotal"
+        ]
+      },
+      "PosShift": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outletId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ]
+          },
+          "expectedTotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "countedTotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "variance": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "outletId",
+          "status",
+          "expectedTotal",
+          "countedTotal",
+          "variance",
+          "openedAt",
+          "closedAt"
+        ]
+      },
+      "QueueOfflineOp": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "opKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
+          }
+        },
+        "required": [
+          "deviceId",
+          "opKey",
+          "payload"
+        ]
+      },
+      "OfflineOp": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceId": {
+            "type": "string"
+          },
+          "opKey": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "applied",
+              "rejected"
+            ]
+          },
+          "rejectionReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "deviceId",
+          "opKey",
+          "status",
+          "rejectionReason"
+        ]
+      },
+      "StartBookingSession": {
+        "type": "object",
+        "properties": {
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ratePlanId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adults": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "default": 1
+          },
+          "children": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "guest": {
+            "type": "object",
+            "properties": {
+              "firstName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "lastName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "phone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "firstName",
+              "lastName"
+            ]
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "default": {
+              "channel": "booking_engine"
+            }
+          }
+        },
+        "required": [
+          "arrivalDate",
+          "departureDate",
+          "roomTypeId",
+          "ratePlanId",
+          "guest"
+        ]
+      },
+      "ConfirmBookingSession": {
+        "type": "object",
+        "properties": {
+          "pspToken": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        }
+      },
+      "BookingSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "started",
+              "confirmed",
+              "cancelled",
+              "expired"
+            ]
+          },
+          "arrivalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "departureDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-07-14"
+          },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ratePlanId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adults": {
+            "type": "integer"
+          },
+          "children": {
+            "type": "integer"
+          },
+          "quotedTotal": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "reservationId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "arrivalDate",
+          "departureDate",
+          "roomTypeId",
+          "ratePlanId",
+          "adults",
+          "children",
+          "quotedTotal",
+          "reservationId",
+          "expiresAt"
+        ]
+      },
+      "SendMessage": {
+        "type": "object",
+        "properties": {
+          "guestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "sms"
+            ]
+          },
+          "templateKey": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "default": {}
+          }
+        },
+        "required": [
+          "channel",
+          "body"
+        ]
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "guestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "sms"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "outbound",
+              "inbound"
+            ]
+          },
+          "templateKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "subject": {
+            "type": "string",
+            "nullable": true
+          },
+          "body": {
+            "type": "string"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "conversationId",
+          "guestId",
+          "channel",
+          "direction",
+          "templateKey",
+          "subject",
+          "body",
+          "sentAt"
+        ]
+      },
+      "Conversation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "guestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "pending",
+              "closed"
+            ]
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "sms"
+            ]
+          },
+          "subject": {
+            "type": "string",
+            "nullable": true
+          },
+          "assigneeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sentiment": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastMessageAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "guestId",
+          "status",
+          "channel",
+          "subject",
+          "assigneeId",
+          "sentiment",
+          "lastMessageAt"
+        ]
+      },
+      "CreateGdprRequest": {
+        "type": "object",
+        "properties": {
+          "guestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestType": {
+            "type": "string",
+            "enum": [
+              "access",
+              "erasure",
+              "rectification",
+              "export"
+            ]
+          },
+          "requesterEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestType",
+          "requesterEmail"
+        ]
+      },
+      "UpdateGdprRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "received",
+              "verifying",
+              "processing",
+              "completed",
+              "rejected"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "GdprRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "guestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "requestType": {
+            "type": "string",
+            "enum": [
+              "access",
+              "erasure",
+              "rectification",
+              "export"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "received",
+              "verifying",
+              "processing",
+              "completed",
+              "rejected"
+            ]
+          },
+          "requesterEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "guestId",
+          "requestType",
+          "status",
+          "requesterEmail",
+          "notes",
+          "dueAt",
+          "completedAt"
+        ]
+      },
       "NightAuditRun": {
         "type": "object",
         "properties": {
@@ -957,6 +3039,91 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List/search reservations",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "inquiry",
+                "tentative",
+                "confirmed",
+                "checked_in",
+                "checked_out",
+                "cancelled",
+                "no_show"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reservations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReservationListRow"
+                  }
                 }
               }
             }
@@ -1272,6 +3439,1774 @@
                   "items": {
                     "$ref": "#/components/schemas/ArrivalRow"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations/{id}/modify": {
+      "post": {
+        "summary": "Reservation action: modify",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyReservation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations/{id}/no-show": {
+      "post": {
+        "summary": "Reservation action: no-show",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations/{id}/reinstate": {
+      "post": {
+        "summary": "Reservation action: reinstate",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations/{id}/room-moves": {
+      "post": {
+        "summary": "Reservation action: room-moves",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "roomId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "effectiveDate": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2026-07-14"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "roomId",
+                  "effectiveDate"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/walk-ins": {
+      "post": {
+        "summary": "Walk-in: book tonight and check in immediately",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalkIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reservation (checked in)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/front-desk/departures": {
+      "get": {
+        "summary": "Today's departures board",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Departures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DepartureRow"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/front-desk/in-house": {
+      "get": {
+        "summary": "In-house guests board",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "In-house",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InHouseRow"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/front-desk/room-rack": {
+      "get": {
+        "summary": "Room rack: rooms × dates grid with stays",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoomRackRow"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/folios": {
+      "post": {
+        "summary": "Create an additional folio for a reservation (splits/routing)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFolio"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Folio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Folio"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/folios/{id}/transfers": {
+      "post": {
+        "summary": "Transfer a posting to another folio (reversal + repost)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferPosting"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Source folio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Folio"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cashier-sessions": {
+      "post": {
+        "summary": "Open a cashier session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenCashierSession"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashierSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cashier-sessions/{id}/close": {
+      "post": {
+        "summary": "Close a cashier session (expected vs counted, variance)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseCashierSession"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashierSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservations/{id}/deposits": {
+      "post": {
+        "summary": "Record a pre-arrival deposit (held on the deposit ledger until check-in)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordDeposit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Deposit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deposit"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/housekeeping/board": {
+      "get": {
+        "summary": "Live room-status board",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Board",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HkBoardRoom"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/housekeeping/tasks": {
+      "get": {
+        "summary": "List housekeeping tasks",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "in_progress",
+                "done",
+                "skipped"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": false,
+            "name": "dueDate",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HkTask"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a housekeeping task",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHkTask"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HkTask"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/housekeeping/tasks/{id}/start": {
+      "post": {
+        "summary": "Housekeeping task action: start",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HkTask"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/housekeeping/tasks/{id}/complete": {
+      "post": {
+        "summary": "Housekeeping task action: complete",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HkTask"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/housekeeping/tasks/{id}/skip": {
+      "post": {
+        "summary": "Housekeeping task action: skip",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HkTask"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/{id}/status": {
+      "post": {
+        "summary": "Update room housekeeping status (dirty → clean → inspected)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomStatusUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HkBoardRoom"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/{id}/out-of-order": {
+      "post": {
+        "summary": "Place a room out of order (decrements availability, CHECK-guarded)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutOfOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AVAILABILITY_CONFLICT",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/maintenance/tickets": {
+      "get": {
+        "summary": "List maintenance tickets",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tickets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MaintenanceTicket"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Report a maintenance ticket",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaintenanceTicket"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ticket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceTicket"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rate-plans": {
+      "get": {
+        "summary": "List rate plans",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rate plans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RatePlan"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rate-plans/{id}/prices": {
+      "get": {
+        "summary": "Read the price grid for a rate plan",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "roomTypeId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RatePriceRow"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Bulk price-grid upsert",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceGridUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated prices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RatePriceRow"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/manager-flash": {
+      "get": {
+        "summary": "Manager flash: occupancy, ADR, RevPAR, revenue mix for a business date",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-07-14"
+            },
+            "required": false,
+            "name": "businessDate",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Flash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerFlash"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/guests": {
+      "get": {
+        "summary": "Search guest profiles",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Guests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Guest"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/guests/{id}": {
+      "get": {
+        "summary": "Guest profile with stay history",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Guest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestProfile"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a guest profile",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGuest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Guest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestProfile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/outlets": {
+      "get": {
+        "summary": "List POS outlets",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outlets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PosOutlet"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/outlets/{id}/tables": {
+      "get": {
+        "summary": "Floor plan tables for an outlet",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tables",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PosTable"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/checks": {
+      "post": {
+        "summary": "Open a POS check",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenPosCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/checks/{id}/items": {
+      "post": {
+        "summary": "Add an item to a POS check",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPosItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/checks/{id}/fire": {
+      "post": {
+        "summary": "Fire a POS check to KDS",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/checks/{id}/close": {
+      "post": {
+        "summary": "Close a POS check with payments or room charge to folio",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClosePosCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/kds": {
+      "get": {
+        "summary": "Kitchen display queue",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "KDS items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PosCheckItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/shifts": {
+      "post": {
+        "summary": "Open a POS shift",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenPosShift"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Shift",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosShift"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/shifts/{id}/close": {
+      "post": {
+        "summary": "Close a POS shift",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClosePosShift"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Shift",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosShift"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pos/offline-ops": {
+      "post": {
+        "summary": "Queue an offline POS operation from a terminal",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueOfflineOp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Offline op",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineOp"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/booking-sessions": {
+      "post": {
+        "summary": "Start a booking-engine shopping session with quoted total",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartBookingSession"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Booking session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/booking-sessions/{id}/confirm": {
+      "post": {
+        "summary": "Confirm a booking session into a PMS reservation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmBookingSession"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Booking session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/messages/send": {
+      "post": {
+        "summary": "Send a transactional guest message and attach it to the inbox",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessage"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations": {
+      "get": {
+        "summary": "Guest conversation inbox",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Conversation"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gdpr/requests": {
+      "post": {
+        "summary": "Create a GDPR data-subject request",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "X-Property-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGdprRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GdprRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gdpr/requests/{id}": {
+      "patch": {
+        "summary": "Update a GDPR request status",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGdprRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GdprRequest"
                 }
               }
             }

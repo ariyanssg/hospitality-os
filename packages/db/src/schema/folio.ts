@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   cashierSessionStatus,
+  depositStatus,
   folioStatus,
   folioType,
   paymentMethod,
@@ -167,6 +168,29 @@ export const payments = pgTable(
     ...auditColumns(),
   },
   (t) => [index('payments_folio').on(t.tenantId, t.folioId)],
+);
+
+/** Pre-arrival deposits sit on the deposit ledger (2000) until check-in applies them to the
+ * guest folio — both control accounts tie by construction (doc modules/01 deposits). */
+export const deposits = pgTable(
+  'deposits',
+  {
+    id: pk(),
+    tenantId: tenantId(),
+    propertyId: propertyId(),
+    reservationId: uuid('reservation_id').notNull(),
+    method: paymentMethod('method').notNull(),
+    amount: money('amount').notNull(),
+    currency: currency().notNull(),
+    status: depositStatus('status').notNull().default('held'),
+    reference: text('reference'),
+    /** The folio posting created when the deposit is applied at check-in. */
+    appliedPostingId: uuid('applied_posting_id'),
+    heldAt: timestamp('held_at', { withTimezone: true }).notNull().defaultNow(),
+    appliedAt: timestamp('applied_at', { withTimezone: true }),
+    ...auditColumns(),
+  },
+  (t) => [index('deposits_reservation').on(t.tenantId, t.reservationId)],
 );
 
 export const cashierSessions = pgTable(

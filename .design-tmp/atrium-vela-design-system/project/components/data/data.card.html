@@ -1,0 +1,54 @@
+<!-- @dsCard group="Components" viewport="700x260" name="Data — PulseBar, StatTile, MoneyText" subtitle="Live vitals strip, KPI tiles & string-safe money" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; background: var(--bg-canvas); color: var(--ink-primary); font-family: var(--font-ui); }
+  .pad { padding: 18px 22px; }
+  .lab { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-tertiary); font-weight: 600; margin: 0 0 10px; }
+  .tiles { display: flex; gap: 12px; margin-bottom: 18px; }
+  .money { display: flex; gap: 20px; font-size: 15px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel" data-presets="react">
+    const { PulseBar, StatTile, MoneyText } = window.AtriumVelaDesignSystem_ec9d90;
+    function Demo() {
+      return (
+        <div>
+          <PulseBar chips={[
+            { id:'occ', label:'Occupancy', value:'84%', delta:{dir:'up',value:'4%'}, tone:'info' },
+            { id:'arr', label:'Arrivals', value:42, progress:0.7 },
+            { id:'queue', label:'Unassigned', value:3, tone:'caution' },
+            { id:'dep', label:'Departures', value:38, progress:0.42 },
+            { id:'adr', label:'ADR', value:'$241', delta:{dir:'up',value:'4%'}, tone:'positive' },
+            { id:'alerts', label:'Alerts', value:2, tone:'critical' },
+          ]} />
+          <div className="pad">
+            <div className="tiles">
+              <StatTile label="Occupancy" value="84%" delta={{dir:'up',value:'4%'}} sub="vs. yesterday" />
+              <StatTile label="ADR" value="$241" delta={{dir:'up',value:'4%'}} />
+              <StatTile label="RevPAR" value="$202" delta={{dir:'down',value:'1%'}} />
+            </div>
+            <p className="lab">MoneyText — sign & color conventions</p>
+            <div className="money">
+              <MoneyText amount="1260.00" />
+              <MoneyText amount="-65.00" />
+              <MoneyText amount="241" signed />
+              <MoneyText amount="1850.50" currency="EUR" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>
